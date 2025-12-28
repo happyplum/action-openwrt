@@ -41,23 +41,19 @@ sed -i 's/DEPENDS:=@(.*/DEPENDS:=@(TARGET_bcm27xx||TARGET_bcm53xx||TARGET_ipq40x
 # Modify default IP（FROM 192.168.1.1 CHANGE TO 192.168.31.4）
 sed -i 's/192.168.1.1/192.168.7.1/g' package/base-files/files/bin/config_generate
 
-# 2024年8月30日屏蔽3528和3588的编译，被强制选中了，而且需要python2
-# sed -i '/^UBOOT_TARGETS := rk3528-evb rk3588-evb/s/^/#/' package/boot/uboot-rk35xx/Makefile
-
 # 优化
-rm -rf package/base-files/files/etc/sysctl.d/base.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/config/base.conf
-rm -rf package/base-files/files/etc/sysctl.d/pro.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/config/pro.conf
-rm -rf package/base-files/files/etc/sysctl.d/99-custom.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/config/99-custom.conf
+rm -rf package/base-files/files/etc/sysctl.d/0-base.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/0-base.conf
+rm -rf package/base-files/files/etc/sysctl.d/0-v4.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/0-v4.conf
+rm -rf package/base-files/files/etc/sysctl.d/0-v6.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/0-v6.conf
+rm -rf package/base-files/files/etc/sysctl.d/1-netfilter.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/1-netfilter.conf
 rm -rf package/base-files/files/etc/balance_irq
-wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/config/balance_irq
+wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/interface/balance_irq
 rm -rf package/base-files/files/usr/sbin/balethirq.pl
 wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/balethirq.pl
-# rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl
-# wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/fixcpufreq.pl
-# sed -i 's/schedutil/performance/g'  package/base-files/files/usr/sbin/fixcpufreq.pl
 
 # 添加自启动
 chmod 755 -R package/base-files/files/usr/sbin
