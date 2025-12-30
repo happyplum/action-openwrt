@@ -184,8 +184,7 @@ jobs:
           # Clean up server space
           cd openwrt/
           [[ -d "output" ]] || mkdir output
-          cp -f bin/targets/*/*/*rootfs.tar.gz output/
-          cp -f bin/targets/*/*/*sysupgrade.img.gz output/
+          cp -f bin/targets/*/*/*squashfs-sysupgrade.bin output/
           cp -f .config output/config
           ls -A | grep -vE '^(output|\.ccache)$' | xargs rm -rf || true
           echo "FIRMWARE=${PWD}/output" >> ${{ github.env }}
