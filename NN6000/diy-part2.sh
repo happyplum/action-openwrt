@@ -31,8 +31,14 @@ function merge_feed(){
 rm -rf package/custom; mkdir package/custom
 
 # ------------------------------- Main source started -------------------------------
-# Modify default IP（FROM 192.168.1.1 CHANGE TO 192.168.31.4）
-sed -i 's/192.168.1.1/192.168.7.1/g' package/base-files/files/bin/config_generate
+# Set default IP address
+default_ip="192.168.7.1"
+ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+# Modify default IP if an argument is provided and it matches the IP format
+[[ -n "${1}" && "${1}" != "${default_ip}" && "${1}" =~ ${ip_regex} ]] && {
+    echo "Modify default IP address to: ${1}"
+    sed -i "/lan) ipad=\${ipaddr:-/s/\${ipaddr:-\"[^\"]*\"}/\${ipaddr:-\"${1}\"}/" package/base-files/*/bin/config_generate
+}
 # ------------------------------- Main source ends -------------------------------
 
 # ------------------------------- Other started -------------------------------

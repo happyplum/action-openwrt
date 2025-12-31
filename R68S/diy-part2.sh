@@ -38,8 +38,14 @@ sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' ./feeds/luci/collections/luci
 # Add autocore support for armvirt
 sed -i 's/DEPENDS:=@(.*/DEPENDS:=@(TARGET_bcm27xx||TARGET_bcm53xx||TARGET_ipq40xx||TARGET_ipq806x||TARGET_ipq807x||TARGET_mvebu||TARGET_rockchip||TARGET_armvirt) \\/g' package/emortal/autocore/Makefile
 
-# Modify default IP（FROM 192.168.1.1 CHANGE TO 192.168.31.4）
-sed -i 's/192.168.1.1/192.168.7.1/g' package/base-files/files/bin/config_generate
+# Set default IP address
+default_ip="192.168.7.1"
+ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+# Modify default IP if an argument is provided and it matches the IP format
+[[ -n "${1}" && "${1}" != "${default_ip}" && "${1}" =~ ${ip_regex} ]] && {
+    echo "Modify default IP address to: ${1}"
+    sed -i "/lan) ipad=\${ipaddr:-/s/\${ipaddr:-\"[^\"]*\"}/\${ipaddr:-\"${1}\"}/" package/base-files/*/bin/config_generate
+}
 
 # 优化
 rm -rf package/base-files/files/etc/sysctl.d/0-base.conf
