@@ -15,7 +15,7 @@ on:
     workflow_dispatch:
 
 env:
-    RELEASES_NAME: _lunzn_fastrhino
+    RELEASES_NAME: _generic
     OPENWRT_BOARD: nsy-g68-plus
     TZ: Asia/Shanghai
 
