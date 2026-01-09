@@ -56,15 +56,15 @@ merge_package https://github.com/xiaorouji/openwrt-passwall openwrt-passwall/luc
 
 # smartDNS #2025年4月6日 根据仓库代码，openwrt-smartdns/需要拷贝到/feeds/packages/net/smartdns/
 # 2025年12月17日 尝试使用src-link来使用merge-package/custom下载的smartdns
-# merge_package https://github.com/pymumu/luci-app-smartdns luci-app-smartdns
+merge_package https://github.com/pymumu/luci-app-smartdns luci-app-smartdns
 
 ./scripts/feeds update -a
 
 # smart好像需要update完了单独处理下
 # 2025年12月17日 好像一直失败，不太清楚，暂时先屏蔽掉用原生的
-# merge_package https://github.com/pymumu/openwrt-smartdns openwrt-smartdns
-# rm -rf feeds/packages/net/smartdns
-# mv package/custom/openwrt-smartdns feeds/packages/net/smartdns
+merge_package https://github.com/pymumu/openwrt-smartdns openwrt-smartdns
+rm -rf feeds/packages/net/smartdns
+mv package/custom/openwrt-smartdns feeds/packages/net/smartdns
 
 ./scripts/feeds install -a
 
