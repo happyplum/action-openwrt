@@ -62,9 +62,9 @@ merge_package https://github.com/pymumu/luci-app-smartdns luci-app-smartdns
 
 # smart好像需要update完了单独处理下
 # 2025年12月17日 好像一直失败，不太清楚，暂时先屏蔽掉用原生的
-merge_package https://github.com/pymumu/openwrt-smartdns openwrt-smartdns
-rm -rf feeds/packages/net/smartdns
-mv package/custom/openwrt-smartdns feeds/packages/net/smartdns
+# merge_package https://github.com/pymumu/openwrt-smartdns openwrt-smartdns
+# rm -rf feeds/packages/net/smartdns
+# mv package/custom/openwrt-smartdns feeds/packages/net/smartdns
 
 ./scripts/feeds install -a
 
