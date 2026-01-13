@@ -1,0 +1,159 @@
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
+
+name: Build OpenWrt Ophub NSY-G68-Plus
+
+on:
+    repository_dispatch:
+    workflow_dispatch:
+
+env:
+    RELEASES_NAME: _generic
+    OPENWRT_BOARD: nsy-g68-plus
+    TZ: Asia/Shanghai
+
+jobs:
+    build:
+        runs-on: ubuntu-24.04
+        if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@main
+              with:
+                  fetch-depth: 0
+
+            - name: Initialization environment
+              id: init
+              env:
+                  DEBIAN_FRONTEND: noninteractive
+              run: |
+                  docker rmi -f $(docker images -q) 2>/dev/null || true
+                  [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+                  sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
+                  sudo swapoff -a
+                  sudo rm -f /swapfile /mnt/swapfile
+                  sudo -E apt-get -y update
+                  sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+                  sudo -E apt-get -y install $(curl -fsSL https://ophub.org/ubuntu2404-make-openwrt-depends)
+                  sudo -E systemctl daemon-reload
+                  #sudo -E apt-get -y full-upgrade
+                  sudo -E apt-get -y autoremove --purge
+                  sudo -E apt-get clean
+                  sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
+                  sudo rm -rf ~/{.cargo,.dotnet,.rustup}
+                  sudo -E timedatectl set-timezone "${TZ:-Etc/UTC}"
+                  sudo -E ntpdate ntp.ubuntu.com 0.pool.ntp.org || true
+                  sudo -E timedatectl set-ntp true
+                  date -u
+                  timedatectl status || true
+                  echo "status=success" >> ${GITHUB_OUTPUT}
+
+            - name: Create simulated physical disk
+              run: |
+                  mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
+                  root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
+                  sudo truncate -s "${mnt_size}"G /mnt/mnt.img
+                  sudo truncate -s "${root_size}"G /root.img
+                  sudo losetup /dev/loop6 /mnt/mnt.img
+                  sudo losetup /dev/loop7 /root.img
+                  sudo pvcreate /dev/loop6
+                  sudo pvcreate /dev/loop7
+                  sudo vgcreate github /dev/loop6 /dev/loop7
+                  sudo lvcreate -n runner -l 100%FREE github
+                  sudo mkfs.xfs -f -i sparse=0 -b size=4096 /dev/github/runner
+                  sudo mkdir -p /builder
+                  sudo mount /dev/github/runner /builder
+                  sudo chown -R runner:runner /builder
+                  df -Th
+                  echo "status=success" >> ${GITHUB_OUTPUT}
+
+            - name: Download OpenWrt rootfs file
+              id: download
+              working-directory: /builder
+              if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
+              run: |
+                  # Create download directory
+                  armsr_tarfile_path="opt/download"
+                  [[ -d "${armsr_tarfile_path}" ]] || mkdir -p ${armsr_tarfile_path}
+                  sudo rm -rf /opt && sudo ln -sf /builder/opt /opt
+                  ln -sf /builder/opt ${{ github.workspace }}/opt
+
+                  # Get name (file name) and url (API asset URL)
+                  latest_version=$(curl -s \
+                      -H "Accept: application/vnd.github+json" \
+                      -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                      https://api.github.com/repos/${{ github.repository }}/releases?per_page=20 | \
+                      jq -r --arg RTK "${RELEASES_NAME}" \
+                      --arg BOARD "-rootfs.tar.gz" \
+                      '[.[] | select(.tag_name | contains($RTK))] |
+                      map(.assets[] | select(.name | endswith($BOARD))) |
+                      sort_by(.updated_at) |
+                      reverse |
+                      .[0] |
+                      {data: .updated_at, url: .url, name: .name}')
+
+                  [[ -z "${latest_version}" || "${latest_version}" == "null" ]] && {
+                      echo "Invalid OpenWrt rootfs download address."
+                      exit 1
+                  }
+
+                  # Get URL and filename separately
+                  latest_url="$(echo ${latest_version} | jq -r '.url')"
+                  openwrt_filename="$(echo ${latest_version} | jq -r '.name')"
+
+                  # Download using API method (add octet-stream header)
+                  echo "Downloading: ${openwrt_filename}"
+                  curl -fsSL \
+                      -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                      -H "Accept: application/octet-stream" \
+                      "${latest_url}" \
+                      -o "${armsr_tarfile_path}/${openwrt_filename}"
+                  [[ "${?}" -ne "0" ]] && echo "Download failed." && exit 1
+
+                  echo "build_tag=OpenWrt_armv8_${OPENWRT_BOARD}_$(date +"%Y.%m")" >> ${GITHUB_ENV}
+                  echo "status=success" >> ${GITHUB_OUTPUT}
+
+            - name: Packaging OpenWrt
+              uses: ophub/amlogic-s9xxx-openwrt@main
+              if: ${{ steps.download.outputs.status }} == 'success' && !cancelled()
+              with:
+                  openwrt_path: opt/download/*rootfs.tar.gz
+                  openwrt_ip: '192.168.7.1'
+                  openwrt_board: ${OPENWRT_BOARD}
+                  openwrt_kernel: '6.12.y'
+                  auto_kernel: true
+                  kernel_repo: 'ophub/kernel'
+                  kernel_usage: 'flippy'
+                  builder_name: 'plum'
+
+            - name: Upload the packaged OpenWrt
+              uses: ncipollo/release-action@main
+              if: ${{ env.PACKAGED_STATUS }} == 'success' && !cancelled()
+              with:
+                  tag: ${{ env.build_tag }}
+                  artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
+                  allowUpdates: true
+                  removeArtifacts: false
+                  replacesArtifacts: true
+                  makeLatest: true
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  body: |
+                      ### OpenWrt Image information
+                      - Default IP: `192.168.7.1`
+                      - Default username: `root`
+                      - Default password: `password`
+                      - Default WIFI name: `OpenWrt`
+                      - Default WIFI password: `none`
+                      ### Install to EMMC
+                      - Login to OpenWrt → `System` → `Amlogic Service` → `Install OpenWrt`
+                      ### Applicable platform
+                      - 🐧 `arm64`
+                      - 🐋 Docker image: https://hub.docker.com/u/ophub
