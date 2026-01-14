@@ -67,3 +67,6 @@ Utilities -> Compression -> bsdtar、pigz
              coreutils-tail、coreutils-timeout、coreutils-touch、coreutils-tr、coreutils-truncate)、
              gawk、getopt、jq、lm-sensors、losetup、pv、tar、uuidgen
 ```
+
+# 2026年1月14日
+发现node组件会大量增加编译时间，进行移除
