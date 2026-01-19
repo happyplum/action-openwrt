@@ -77,14 +77,14 @@ rm -rf package/base-files/files/etc/balance_irq
 wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/interface/balance_irq
 rm -rf package/base-files/files/usr/sbin/balethirq.pl
 wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/balethirq.pl
-rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl
-wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/fixcpufreq.pl
-sed -i 's/schedutil/performance/g'  package/base-files/files/usr/sbin/fixcpufreq.pl
+# rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl
+# wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/fixcpufreq.pl
+# sed -i 's/schedutil/performance/g'  package/base-files/files/usr/sbin/fixcpufreq.pl
 
 # 添加自启动
 chmod 755 -R package/base-files/files/usr/sbin
 sed -i '/exit 0/i\/usr/sbin/balethirq.pl' package/base-files/files/etc/rc.local
-sed -i '/exit 0/i\/usr/sbin/fixcpufreq.pl' package/base-files/files/etc/rc.local
+# sed -i '/exit 0/i\/usr/sbin/fixcpufreq.pl' package/base-files/files/etc/rc.local
 
 # 下载singbox的db数据
 # rm -rf package/base-files/files/usr/share/singbox/geoip.db
