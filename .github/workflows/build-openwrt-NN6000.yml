@@ -30,7 +30,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    if: ${{ github.event.repository.owner.id }} == ${{ github.event.sender.id }}
+    if: ${{ github.event.repository.owner.id == github.event.sender.id }}
 
     steps:
       - name: Checkout
@@ -87,7 +87,7 @@ jobs:
       - name: Clone source code
         id: codes
         working-directory: /builder
-        if: ${{ steps.init.outputs.status }} == 'success' && !cancelled()
+        if: ${{ steps.init.outputs.status == 'success' && !cancelled() }}
         run: |
           # Extract REPO_NAME from REPO_URL
           REPO_NAME=$(basename "${REPO_URL}" .git)
@@ -138,7 +138,7 @@ jobs:
 
       - name: Get OpenWrt source hash
         id: openwrthash
-        if: ${{ steps.codes.outputs.status }} == 'success' && !cancelled()
+        if: ${{ steps.codes.outputs.status == 'success' && !cancelled() }}
         run: |
           # Get the latest source hash from the kernel repository
           repo_path="$(echo "${{ env.REPO_URL }}" | awk -F"github.com/" '{print $2}')"
@@ -179,7 +179,7 @@ jobs:
 
       - name: Clear server space
         id: clean
-        if: ${{ steps.compile.outputs.status }} == 'success' && !cancelled()
+        if: ${{ steps.compile.outputs.status == 'success' && !cancelled() }}
         run: |
           # Clean up server space
           cd openwrt/
@@ -195,7 +195,7 @@ jobs:
 
       - name: Generate release tag
         id: tag
-        if: ${{ env.UPLOAD_RELEASE }} == 'true' && ${{ steps.clean.outputs.status }} == 'success' && !cancelled()
+        if: ${{ env.UPLOAD_RELEASE == 'true' && steps.clean.outputs.status == 'success' && !cancelled() }}
         run: |
           echo "release_tag=${{ env.DEVICE_NAME }}-$(date +"%Y.%m.%d-%H%M")" >> ${{ github.output }}
           touch release.txt
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload firmware to release
         uses: softprops/action-gh-release@master
-        if: ${{ steps.clean.outputs.status }} == 'success' && !cancelled()
+        if: ${{ steps.clean.outputs.status == 'success' && !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         with:
