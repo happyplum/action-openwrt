@@ -202,12 +202,14 @@ jobs:
           touch release.txt
           echo "status=success" >> ${{ github.output }}
 
-      - name: Upload firmware to release
-        uses: softprops/action-gh-release@master
+      - name: Upload OpenWrt to Release
+        uses: ncipollo/release-action@main
         if: ${{ steps.clean.outputs.status == 'success' && !cancelled() }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          body_path: release.txt
-          files: ${{ env.FIRMWARE }}/*
+          tag: ${{ steps.tag.outputs.release_tag }}
+          artifacts: ${{ env.FIRMWARE }}/*
+          allowUpdates: true
+          removeArtifacts: false
+          replacesArtifacts: true
+          makeLatest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
