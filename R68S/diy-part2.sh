@@ -66,15 +66,15 @@ ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01
 
 # 优化
 rm -rf package/base-files/files/etc/sysctl.d/0-base.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/0-base.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-base.conf
 rm -rf package/base-files/files/etc/sysctl.d/0-v4.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/0-v4.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-v4.conf
 rm -rf package/base-files/files/etc/sysctl.d/0-v6.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/0-v6.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-v6.conf
 rm -rf package/base-files/files/etc/sysctl.d/1-netfilter.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/OpenWrt/main/config/1-netfilter.conf
+wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/1-netfilter.conf
 rm -rf package/base-files/files/etc/balance_irq
-wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/OpenWrt/main/R68S/interface/balance_irq
+wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/R68S/interface/balance_irq
 rm -rf package/base-files/files/usr/sbin/balethirq.pl
 wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/balethirq.pl
 # rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl
