@@ -88,7 +88,7 @@ rm -rf package/base-files/files/usr/share/v2ray/geoip.dat
 wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
 rm -rf package/base-files/files/usr/share/v2ray/geosite.dat
 wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-rf -rf package/base-files/files/usr/share/xray
+rm -rf package/base-files/files/usr/share/xray
 mkdir package/base-files/files/usr/share/xray
 ln -s package/base-files/files/usr/share/v2ray/geoip.dat package/base-files/files/usr/share/xray/geoip.dat
 ln -s package/base-files/files/usr/share/v2ray/geosite.dat package/base-files/files/usr/share/xray/geosite.dat
