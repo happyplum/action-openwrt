@@ -31,15 +31,6 @@ function merge_feed(){
 rm -rf package/custom; mkdir package/custom
 
 # ------------------------------- Custom Package -------------------------------
-# Add luci-app-amlogic
-merge_package https://github.com/ophub/luci-app-amlogic luci-app-amlogic/luci-app-amlogic
-
-# passwall
-merge_package https://github.com/xiaorouji/openwrt-passwall openwrt-passwall/luci-app-passwall
-
-# 2025年12月17日 尝试使用src-link来使用merge-package/custom下载的smartdns
-merge_package https://github.com/pymumu/luci-app-smartdns luci-app-smartdns
-
 ./scripts/feeds update -a
 # ------------------------------- Custom Package -------------------------------
 
@@ -77,52 +68,41 @@ rm -rf package/base-files/files/etc/balance_irq
 wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/R68S/interface/balance_irq
 rm -rf package/base-files/files/usr/sbin/balethirq.pl
 wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/balethirq.pl
-# rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl
-# wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/fixcpufreq.pl
-# sed -i 's/schedutil/performance/g'  package/base-files/files/usr/sbin/fixcpufreq.pl
+rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl
+wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/fixcpufreq.pl
+sed -i 's/schedutil/performance/g'  package/base-files/files/usr/sbin/fixcpufreq.pl
 
 # 添加自启动
 chmod 755 -R package/base-files/files/usr/sbin
 sed -i '/exit 0/i\/usr/sbin/balethirq.pl' package/base-files/files/etc/rc.local
-# sed -i '/exit 0/i\/usr/sbin/fixcpufreq.pl' package/base-files/files/etc/rc.local
+sed -i '/exit 0/i\/usr/sbin/fixcpufreq.pl' package/base-files/files/etc/rc.local
 
 # 下载singbox的db数据
-# rm -rf package/base-files/files/usr/share/singbox/geoip.db
-# wget -P package/base-files/files/usr/share/singbox https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.db
-# rm -rf package/base-files/files/usr/share/singbox/geosite.db
-# wget -P package/base-files/files/usr/share/singbox https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.db
+rm -rf package/base-files/files/usr/share/singbox/geoip.db
+wget -P package/base-files/files/usr/share/singbox https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.db
+rm -rf package/base-files/files/usr/share/singbox/geosite.db
+wget -P package/base-files/files/usr/share/singbox https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.db
 
 # 下载v2ray的dat数据
-# rm -rf package/base-files/files/usr/share/v2ray/geoip.dat
-# wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-# rm -rf package/base-files/files/usr/share/v2ray/geosite.dat
-# wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
+rm -rf package/base-files/files/usr/share/v2ray/geoip.dat
+wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
+rm -rf package/base-files/files/usr/share/v2ray/geosite.dat
+wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
+rf -rf package/base-files/files/usr/share/xray
+mkdir package/base-files/files/usr/share/xray
+ln -s package/base-files/files/usr/share/v2ray/geoip.dat package/base-files/files/usr/share/xray/geoip.dat
+ln -s package/base-files/files/usr/share/v2ray/geosite.dat package/base-files/files/usr/share/xray/geosite.dat
 
 # ------------------------------- Main source ends -------------------------------
 
 # ------------------------------- Other started -------------------------------
 #
 # 1.设置OpenWrt 文件的下载仓库
-sed -i "s|amlogic_firmware_repo.*|amlogic_firmware_repo 'https://github.com/happyplum/action-openwrt'|g" package/custom/luci-app-amlogic/root/etc/config/amlogic
-# 2.设置 Releases 里 Tags 的关键字
-sed -i "s|OpenWrt_armv8_r68s|g" package/custom/luci-app-amlogic/root/etc/config/amlogic
-# 3.设置 Releases 里 OpenWrt 文件的后缀
-sed -i "s|.img.gz|.OPENWRT_SUFFIX|g" package/custom/luci-app-amlogic/root/etc/config/amlogic
-# 4.设置 OpenWrt 内核的下载路径
-# sed -i "s|amlogic_kernel_path.*|amlogic_kernel_path 'https://github.com/USERNAME/REPOSITORY'|g" package/custom/luci-app-amlogic/root/etc/config/amlogic
-
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
 #
 # ------------------------------- Other ends -------------------------------
-
-# smartDNS #2025年4月6日 根据仓库代码，openwrt-smartdns/需要拷贝到/feeds/packages/net/smartdns/
-# smart好像需要update完了单独处理下
-# merge_package https://github.com/pymumu/openwrt-smartdns openwrt-smartdns
-# rm -rf feeds/packages/net/smartdns
-# mv package/custom/openwrt-smartdns feeds/packages/net/smartdns
-
 ./scripts/feeds install -a
 
 echo "========================="

@@ -6,5 +6,3 @@ src-git video https://github.com/openwrt/video.git
 #src-git targets https://github.com/openwrt/targets.git
 #src-git oldpackages http://git.openwrt.org/packages.git
 #src-link custom /usr/src/openwrt/custom-feed
-src-link custom ./package/custom
-src-git passwallpackages https://github.com/xiaorouji/openwrt-passwall-packages.git
