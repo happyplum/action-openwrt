@@ -20,15 +20,6 @@ function merge_package(){
 function drop_package(){
     find package/ -follow -name $1 -not -path "package/custom/*" | xargs -rt rm -rf
 }
-function merge_feed(){
-    if [ ! -d "feed/$1" ]; then
-        echo >> feeds.conf.default
-        echo "src-git $1 $2" >> feeds.conf.default
-    fi
-    ./scripts/feeds update $1
-    ./scripts/feeds install -a -p $1
-}
-rm -rf package/custom; mkdir package/custom
 
 # ------------------------------- Custom Package -------------------------------
 ./scripts/feeds update -a
@@ -84,6 +75,7 @@ rm -rf package/base-files/files/usr/share/singbox/geosite.db
 wget -P package/base-files/files/usr/share/singbox https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.db
 
 # 下载v2ray的dat数据
+rm -rf feeds/packages/net/v2ray-geodata
 rm -rf package/base-files/files/usr/share/v2ray/geoip.dat
 wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
 rm -rf package/base-files/files/usr/share/v2ray/geosite.dat
@@ -98,6 +90,16 @@ ln -s package/base-files/files/usr/share/v2ray/geosite.dat package/base-files/fi
 # ------------------------------- Other started -------------------------------
 #
 # 1.设置OpenWrt 文件的下载仓库
+# mosdns
+rm -rf package/mosdns
+git clone --depth=1 -b v5 --single-branch https://github.com/sbwml/luci-app-mosdns package/mosdns
+
+#smartdns
+rm -rf package/luci-app-smartdns
+rm -rf feeds/packages/net/smartdns
+git clone --depth=1 --single-branch https://github.com/pymumu/luci-app-smartdns package/luci-app-smartdns
+git clone --depth=1 --single-branch https://github.com/pymumu/openwrt-smartdns feeds/packages/net/smartdns
+
 #
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
