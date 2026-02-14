@@ -9,49 +9,48 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 date_version=$(date +"%Y%m%d%H")
 echo $date_version > version
 
-# 从 GitHub 稀疏克隆指定目录
+# 从 GitHub 稀疏克隆多个目录
 clone_from_github() {
-    local target_dir="$1"
-    local output_dir="$2"
     local tmp_dir=$(mktemp -d)
-    echo "从 GitHub 克隆: ${target_dir}"
+    echo "从 GitHub 克隆: NSY-G68-PLUS/userpatches 和 NSY-G68-PLUS/patch"
     git clone --depth=1 --filter=blob:none --sparse "${GITHUB_REPO}" "${tmp_dir}" 2>/dev/null
-    (cd "${tmp_dir}" && git sparse-checkout set "${target_dir}" 2>/dev/null)
-    if [[ -d "${tmp_dir}/${target_dir}" ]]; then
-        mkdir -p "${output_dir}"
-        cp -r "${tmp_dir}/${target_dir}/"* "${output_dir}/" 2>/dev/null
-        echo "克隆完成: ${target_dir}"
+    (cd "${tmp_dir}" && git sparse-checkout set "NSY-G68-PLUS/userpatches" "NSY-G68-PLUS/patch" 2>/dev/null)
+    if [[ -d "${tmp_dir}/NSY-G68-PLUS/userpatches" ]]; then
+        mkdir -p "./userpatches"
+        cp -r "${tmp_dir}/NSY-G68-PLUS/userpatches/"* "./userpatches/" 2>/dev/null
+        echo "userpatches 克隆完成"
     else
-        echo "警告: 无法克隆 ${target_dir}"
+        echo "警告: 无法克隆 userpatches"
+    fi
+    if [[ -d "${tmp_dir}/NSY-G68-PLUS/patch" ]]; then
+        cp -r "${tmp_dir}/NSY-G68-PLUS/patch" "./" 2>/dev/null
+        echo "patch 克隆完成"
+    else
+        echo "警告: 无法克隆 patch"
     fi
     rm -rf "${tmp_dir}"
 }
 
-# 检查并获取 userpatches
-setup_userpatches() {
-    if [[ -d "${SCRIPT_DIR}/userpatches" ]]; then
-        echo "使用本地 userpatches..."
-        rsync -a "${SCRIPT_DIR}/userpatches/" ./
+# 检查并获取所需文件
+setup_files() {
+    local need_clone=false
+    if [[ ! -d "${SCRIPT_DIR}/userpatches" ]]; then
+        need_clone=true
+    fi
+    if [[ ! -d "${SCRIPT_DIR}/patch" ]]; then
+        need_clone=true
+    fi
+    if [[ "${need_clone}" == "true" ]]; then
+        clone_from_github
     else
-        echo "从 GitHub 克隆 userpatches..."
-        clone_from_github "NSY-G68-PLUS/userpatches" "./userpatches"
+        echo "使用本地文件..."
+        [[ -d "${SCRIPT_DIR}/userpatches" ]] && rsync -a "${SCRIPT_DIR}/userpatches/" ./
+        [[ -d "${SCRIPT_DIR}/patch" ]] && cp -r "${SCRIPT_DIR}/patch" ./
     fi
 }
 
-# 检查并获取 patch
-setup_patch() {
-    if [[ -d "${SCRIPT_DIR}/patch" ]]; then
-        echo "使用本地 patch..."
-        cp -r "${SCRIPT_DIR}/patch" ./
-    else
-        echo "从 GitHub 克隆 patch..."
-        clone_from_github "NSY-G68-PLUS/patch" "./patch"
-    fi
-}
-
-# 设置 userpatches 和 patch
-setup_userpatches
-setup_patch
+# 设置所需文件
+setup_files
 
 # 修正自动编译 openwrt 时 rust 选项导致错误
 if [[ -f "feeds/packages/lang/rust/Makefile" ]]; then
