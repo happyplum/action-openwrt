@@ -1,0 +1,268 @@
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
+
+name: Build OpenWrt NSY-G68-PLUS
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      BRANCH:
+        description: '系统版本'
+        required: true
+        default: 'master'
+        type: choice
+        options:
+          - master
+          - openwrt-24.10
+      DSA:
+        description: 'Enable DSA Switch'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  REPO_URL: https://github.com/immortalwrt/immortalwrt.git
+  REPO_BRANCH: ${{ inputs.BRANCH || 'master' }}
+  CONFIG_FILE: NSY-G68-PLUS/.config
+  DIY_P1_SH: diy-part1.sh
+  DIY_P2_SH: NSY-G68-PLUS/diy-part2.sh
+  DEFAULT_IP: 192.168.7.1
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+  SYSTEM: immortalwrt
+  BOARD: g68-plus
+  SWITCH_TYPE: ${{ inputs.DSA && '-dsa' || '-swconfig' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.repository.owner.id == github.event.sender.id }}
+
+    outputs:
+      COMMIT_AUTHOR: ${{ steps.setenv.outputs.COMMIT_AUTHOR }}
+      COMMIT_DATE: ${{ steps.setenv.outputs.COMMIT_DATE }}
+      COMMIT_MESSAGE: ${{ steps.setenv.outputs.COMMIT_MESSAGE }}
+      COMMIT_HASH: ${{ steps.setenv.outputs.COMMIT_HASH }}
+      DEVICE_TARGET: ${{ steps.variable.outputs.DEVICE_TARGET }}
+      DEVICE_SUBTARGET: ${{ steps.variable.outputs.DEVICE_SUBTARGET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+
+      - name: Initialization environment
+        id: init
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          docker rmi -f $(docker images -q) 2>/dev/null || true
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
+          sudo swapoff -a
+          sudo rm -f /swapfile /mnt/swapfile
+          sudo -E apt-get -y update
+          sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+          sudo -E apt-get -y install build-essential clang flex bison g++ gawk \
+          gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
+          python3-setuptools rsync swig unzip zlib1g-dev file wget \
+          libpython3-dev python3 python3-pip python3-cryptography python3-docutils \
+          python3-ply python3-pyelftools python3-requests python3-socks python3-unidecode \
+          clang llvm jq quilt
+          sudo -E systemctl daemon-reload
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
+          sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
+          sudo rm -rf ~/{.cargo,.dotnet,.rustup}
+          sudo -E timedatectl set-timezone "${TZ:-Etc/UTC}"
+          sudo -E ntpdate ntp.ubuntu.com 0.pool.ntp.org || true
+          sudo -E timedatectl set-ntp true
+          date -u
+          timedatectl status || true
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Create simulated physical disk
+        run: |
+          mnt_size=$(expr $(df -h /mnt | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 1)
+          root_size=$(expr $(df -h / | tail -1 | awk '{print $4}' | sed 's/[[:alpha:]]//g' | sed 's/\..*//') - 4)
+          sudo truncate -s "${mnt_size}"G /mnt/mnt.img
+          sudo truncate -s "${root_size}"G /root.img
+          sudo losetup /dev/loop6 /mnt/mnt.img
+          sudo losetup /dev/loop7 /root.img
+          sudo pvcreate /dev/loop6
+          sudo pvcreate /dev/loop7
+          sudo vgcreate github /dev/loop6 /dev/loop7
+          sudo lvcreate -n runner -l 100%FREE github
+          sudo mkfs.xfs -f -i sparse=0 -b size=4096 /dev/github/runner
+          sudo mkdir -p /builder
+          sudo mount /dev/github/runner /builder
+          sudo chown -R runner:runner /builder
+          df -Th
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Clone source code
+        id: codes
+        working-directory: /builder
+        if: ${{ steps.init.outputs.status == 'success' && !cancelled() }}
+        run: |
+          REPO_NAME=$(basename "${REPO_URL}" .git)
+          git clone -q --single-branch --depth=1 --branch=${{ env.REPO_BRANCH }} ${REPO_URL} openwrt
+          ln -sf /builder/openwrt ${{ github.workspace }}/openwrt
+          echo "OPENWRT_PATH=/builder/openwrt" >> ${GITHUB_ENV}
+          echo "REPO_NAME=${REPO_NAME}" >> ${GITHUB_ENV}
+          df -hT ${PWD}
+          echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Set source variables
+        id: setenv
+        run: |
+          cd $OPENWRT_PATH
+          COMMIT_AUTHOR=$(git show -s --date=short --format="作者: %an")
+          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_ENV
+          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          COMMIT_DATE=$(git show -s --date=short --format="时间: %ci")
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_ENV
+          echo "COMMIT_DATE=$COMMIT_DATE" >> $GITHUB_OUTPUT
+          COMMIT_MESSAGE=$(git show -s --date=short --format="内容: %s")
+          echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_ENV
+          echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          COMMIT_HASH=$(git show -s --date=short --format="hash: %H")
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_OUTPUT
+
+      - name: Generate variables
+        id: variable
+        run: |
+          SOURCE_REPO="$(echo $REPO_URL | awk -F '/' '{print $(NF)}')"
+          echo "SOURCE_REPO=$SOURCE_REPO" >> $GITHUB_ENV
+          if [[ -e "${CONFIG_FILE}" ]]; then
+            DEVICE_TARGET=$(cat ${CONFIG_FILE} | grep CONFIG_TARGET_BOARD | awk -F '"' '{print $2}')
+            DEVICE_SUBTARGET=$(cat ${CONFIG_FILE} | grep CONFIG_TARGET_SUBTARGET | awk -F '"' '{print $2}')
+          fi
+          echo "DEVICE_TARGET=${DEVICE_TARGET:-rockchip}" >> $GITHUB_ENV
+          echo "DEVICE_TARGET=${DEVICE_TARGET:-rockchip}" >> $GITHUB_OUTPUT
+          echo "DEVICE_SUBTARGET=${DEVICE_SUBTARGET:-armv8}" >> $GITHUB_ENV
+          echo "DEVICE_SUBTARGET=${DEVICE_SUBTARGET:-armv8}" >> $GITHUB_OUTPUT
+
+      - name: Cache toolchain
+        uses: HiGarfield/cachewrtbuild@main
+        with:
+          ccache: false
+          mixkey: ${{ env.SOURCE_REPO }}-${{ env.REPO_BRANCH }}-${{ env.DEVICE_TARGET }}-${{ env.DEVICE_SUBTARGET }}
+          prefix: ${{ env.OPENWRT_PATH }}
+
+      - name: Load custom feeds
+        run: |
+          chmod +x ${DIY_P1_SH}
+          cd openwrt/
+          ${{ github.workspace }}/${DIY_P1_SH}
+
+      - name: Update feeds
+        run: cd openwrt && ./scripts/feeds update -a
+
+      - name: Install feeds
+        run: cd openwrt && ./scripts/feeds install -a
+
+      - name: Apply DSA config
+        if: ${{ inputs.DSA }}
+        run: |
+          [ -e ${{ github.workspace }}/NSY-G68-PLUS/dsa ] && cp -r ${{ github.workspace }}/NSY-G68-PLUS/dsa/* openwrt/
+
+      - name: Load custom configuration
+        run: |
+          sudo chmod -R +w openwrt/
+          [[ -e "${CONFIG_FILE}" ]] && cp -f ${CONFIG_FILE} openwrt/.config
+          chmod +x ${DIY_P2_SH}
+          cd openwrt/
+          ${{ github.workspace }}/${DIY_P2_SH} ${DEFAULT_IP}
+          rm -rf openwrt/tmp
+
+      - name: Make defconfig
+        run: |
+          cd openwrt/
+          make defconfig
+
+      - name: Download package
+        id: package
+        run: |
+          cd openwrt/
+          make download -j8
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: Compile the OpenWrt
+        id: compile
+        run: |
+          cd openwrt/
+          echo -e "$(nproc) thread compile"
+          make -j$(nproc) || make -j1 V=sc
+          echo "status=success" >> ${GITHUB_OUTPUT}
+          echo "DATE=$(date +"%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
+          echo "TAG_DATE=$(date +"%Y.%m.%d-%H.%M")" >> $GITHUB_ENV
+          echo "FILE_DATE=$(date +"%Y.%m.%d")" >> $GITHUB_ENV
+
+      - name: Check space usage
+        if: (!cancelled())
+        run: df -hT
+
+      - name: Organize files
+        if: steps.compile.outputs.status == 'success'
+        run: |
+          cd $OPENWRT_PATH/bin/targets/rockchip/armv8/
+          cat sha256sums
+          for file in *.gz *.zst; do [ -e "$file" ] || continue; mv "$file" $OPENWRT_PATH/bin/${{ env.FILE_DATE }}${{ env.SWITCH_TYPE }}-$file; done
+          mv sha256sums *.manifest *.json *.buildinfo $OPENWRT_PATH/bin/
+          cd $OPENWRT_PATH/bin/
+          cp ../.config build.config
+          cp $OPENWRT_PATH/build_dir/target-aarch64_generic_musl/linux-rockchip_armv8/linux*/.config kernel.config 2>/dev/null || true
+          mkdir dist
+          mv packages targets dist/ 2>/dev/null || true
+          tar -zcf ${{ env.FILE_DATE }}${{ env.SWITCH_TYPE }}-Packages.tar.gz dist --remove-files 2>/dev/null || true
+          echo "KERNEL=$(cat *.manifest 2>/dev/null | grep ^kernel | cut -d- -f2 | tr -d ' ')" >> $GITHUB_ENV
+          echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
+
+      - name: Generate release tag
+        id: tag
+        if: ${{ env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled() }}
+        run: |
+          echo "release_tag=${{ env.TAG_DATE }}${{ env.SWITCH_TYPE }}-${{ env.BOARD }}" >> ${{ github.output }}
+          echo "status=success" >> ${{ github.output }}
+
+      - name: Upload OpenWrt to Release
+        uses: ncipollo/release-action@v1.20.0
+        if: ${{ steps.compile.outputs.status == 'success' && !cancelled() }}
+        with:
+          name: R${{ env.DATE }} for ${{ env.BOARD }}${{ env.SWITCH_TYPE }}
+          commit: ${{ github.sha }}
+          allowUpdates: true
+          tag: ${{ steps.tag.outputs.release_tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: ${{ env.FIRMWARE_PATH }}/*
+          body: |
+            **This is ImmortalWrt Firmware for ${{ env.BOARD }}**
+            ### 📒 固件信息
+            - 💻 平台架构: ${{ env.DEVICE_TARGET }}-${{ env.DEVICE_SUBTARGET }} (rk3568)
+            - ⚽ 固件源码: ${{ env.REPO_URL }}
+            - 💝 源码分支: ${{ env.REPO_BRANCH }}
+            - 🚀 内核版本: ${{ env.KERNEL }}
+            - 🌐 默认地址: ${{ env.DEFAULT_IP }}
+            - 🔑 默认密码: (空)
+            - 🔧 交换机模式: ${{ inputs.DSA && 'DSA' || 'Swconfig' }}
+            ### 🧊 固件版本
+            - 固件编译前最后一次➦[主源码](${{ env.REPO_URL }})更新记录
+            - ${{ env.COMMIT_AUTHOR }}
+            - ${{ env.COMMIT_DATE }}
+            - ${{ env.COMMIT_MESSAGE }}
+            - ${{ env.COMMIT_HASH }}
