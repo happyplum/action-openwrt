@@ -14,7 +14,7 @@ on:
   repository_dispatch:
   workflow_dispatch:
   schedule:
-    - cron: 0 12 * * *
+    - cron: "0 0 * * *"
 
 env:
   REPO_URL: https://github.com/LiBwrt-op/openwrt-6.x.git
@@ -30,7 +30,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    if: ${{ github.event.repository.owner.id == github.event.sender.id }}
+    if: ${{ github.event_name == 'schedule' || github.event.repository.owner.id == github.event.sender.id }}
 
     steps:
       - name: Checkout
