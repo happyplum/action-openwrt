@@ -13,22 +13,15 @@ name: Build OpenWrt NSY-G68-PLUS
 on:
   repository_dispatch:
   workflow_dispatch:
-    inputs:
-      BRANCH:
-        description: '系统版本'
-        required: true
-        default: 'master'
-        type: choice
-        options:
-          - master
-          - openwrt-24.10
+  schedule:
+    - cron: "0 20 * * *"
 
 permissions:
   contents: write
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt.git
-  REPO_BRANCH: ${{ inputs.BRANCH || 'master' }}
+  REPO_BRANCH: master
   CONFIG_FILE: NSY-G68-PLUS/.config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: NSY-G68-PLUS/diy-part2.sh
@@ -41,7 +34,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    if: ${{ github.event.repository.owner.id == github.event.sender.id }}
+    if: ${{ github.event_name == 'schedule' || github.event.repository.owner.id == github.event.sender.id }}
 
     outputs:
       COMMIT_AUTHOR: ${{ steps.setenv.outputs.COMMIT_AUTHOR }}
