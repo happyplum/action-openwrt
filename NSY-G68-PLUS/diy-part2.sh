@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 项目配置
-GITHUB_REPO="git@github.com:happyplum/action-openwrt.git"
+GITHUB_REPO="https://github.com/happyplum/action-openwrt.git"
 GITHUB_BRANCH="main"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
