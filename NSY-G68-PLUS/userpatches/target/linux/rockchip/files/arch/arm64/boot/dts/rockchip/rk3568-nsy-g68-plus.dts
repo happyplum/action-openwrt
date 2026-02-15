@@ -1,0 +1,775 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/soc/rockchip,vop2.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+#include "rk3568.dtsi"
+
+/ {
+	model = "NSY-G68 AX3000 Router";
+	compatible = "nsy,g68-plus", "rockchip,rk3568";
+
+	aliases {
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
+		mmc0 = &sdhci;
+	};
+
+	chosen: chosen {
+		stdout-path = "serial2:1500000n8";
+	};
+
+	fiq-debugger {
+		compatible = "rockchip,fiq-debugger";
+		rockchip,serial-id = <2>;
+		rockchip,wake-irq = <0>;
+		/* If enable uart uses irq instead of fiq */
+		rockchip,irq-mode-enable = <1>;
+		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
+		interrupts = <GIC_SPI 252 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2m0_xfer>;
+		status = "okay";
+	};
+
+	debug: debug@fd904000 {
+		compatible = "rockchip,debug";
+		reg = <0x0 0xfd904000 0x0 0x1000>,
+			<0x0 0xfd905000 0x0 0x1000>,
+			<0x0 0xfd906000 0x0 0x1000>,
+			<0x0 0xfd907000 0x0 0x1000>;
+	};
+
+	dc_12v: dc-12v {
+		compatible = "regulator-fixed";
+		regulator-name = "dc_12v";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <12000000>;
+		regulator-max-microvolt = <12000000>;
+	};
+
+	vcc3v3_sys: vcc3v3-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc3v3_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&dc_12v>;
+	};
+
+	vcc5v0_sys: vcc5v0-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc5v0_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&dc_12v>;
+	};
+
+	vcc5v0_host: vcc5v0-host-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc5v0_host";
+		regulator-boot-on;
+		regulator-always-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&gpio0 RK_PA5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vcc5v0_host_en>;
+	};
+
+	vcc_1v8: vcc-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_1v8";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&vcc5v0_sys>;
+	};
+
+	vcc_3v3: vcc_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_3v3";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vcc5v0_sys>;
+	};
+
+	vcc3v3_pcie: vcc3v3-pcie {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc3v3_pcie";
+		enable-active-high;
+		gpio = <&gpio0 RK_PD4 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vcc3v3_sys>;
+	};
+
+	vccio_sd: LDO_REG5 {
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-name = "vccio_sd";
+
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+
+	vcc3v3_sd: SWITCH_REG2 {
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-name = "vcc3v3_sd";
+
+		regulator-state-mem {
+			regulator-off-in-suspend;
+		};
+	};
+
+	vdd_fixed: vdd-fixed {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_fixed";
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc5v0_sys>;
+	};
+
+	vdd_cpu: vdd-cpu {
+		compatible = "pwm-regulator";
+		rockchip,pwm_id = <0>;
+		rockchip,pwm_voltage = <900000>;
+		pwms = <&pwm0 0 25000 1>;
+		regulator-name = "vdd_cpu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1400000>;
+		regulator-init-microvolt = <1150000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-settling-time-up-us = <250>;
+		pwm-supply = <&vcc5v0_sys>;
+		status = "okay";
+	};
+
+
+	vdd_logic: vdd-logic {
+		compatible = "pwm-regulator";
+		rockchip,pwm_id = <1>;
+		rockchip,pwm_voltage = <900000>;
+		pwms = <&pwm1 0 5000 1>;
+		regulator-name = "vdd_logic";
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-init-microvolt = <900000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-settling-time-up-us = <250>;
+		pwm-supply = <&vcc5v0_sys>;
+		status = "okay";
+	};
+
+	vdd_npu: vdd-npu {
+		compatible = "pwm-regulator";
+		pwms = <&pwm2 0 5000 1>;
+		regulator-name = "vdd_npu";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1200000>;
+		regulator-init-microvolt = <950000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-settling-time-up-us = <250>;
+		pwm-supply = <&vcc5v0_sys>;
+		status = "disabled";
+	};
+
+	gmac0_xpcsclk: xpcs-gmac0-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "clk_gmac0_xpcs_mii";
+		#clock-cells = <0>;
+	};
+
+	gmac1_xpcsclk: xpcs-gmac1-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "clk_gmac1_xpcs_mii";
+		#clock-cells = <0>;
+	};
+
+	adc_keys: adc-keys {
+		compatible = "adc-keys";
+		io-channels = <&saradc 0>;
+		io-channel-names = "buttons";
+		keyup-threshold-microvolt = <1800000>;
+		poll-interval = <100>;
+		status = "okay";
+		recovery-key {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			press-threshold-microvolt = <1000>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led-power {
+			label = "led-power";
+			default-state = "on";
+			gpios = <&gpio0 RK_PC4 GPIO_ACTIVE_HIGH>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&led_power_en>;
+		};
+	};
+
+	rtlgsw@0 {
+		compatible = "realtek,rtl8367s";
+		realtek,mdio = <&mdio0>;
+		mii-bus = <&mdio0>;
+		realtek,id = <29>;
+		phy-id = <29>;
+		cpu_port = <7>;
+
+		//txdelay, rxdelay, mode, ability.force_mode, ability.txpause, ability.rxpause, ability.link, ability.duplex, speed
+		//sgmii,
+		realtek,extif1 = <0 0 11 1 1 1 1 1 2>;
+		//rgmii
+		realtek,extif2 = <0 0 1 1 1 1 1 1 2>;
+		//realtek,disable-leds;
+		status = "okay";
+	};
+	
+	rockchip-suspend {
+		compatible = "rockchip,pm-rk3568";
+		status = "okay";
+		rockchip,sleep-debug-en = <0x01>;
+		rockchip,sleep-mode-config = <0x4e4>;
+		rockchip,wakeup-config = <0x2001>;
+	};
+
+	external-gmac0-clock {
+		#clock-cells = <0x00>;
+		clock-frequency = <125000000>;
+		clock-output-names = "gmac0_clkin";
+		compatible = "fixed-clock";
+	};
+
+	external-gmac1-clock {
+		#clock-cells = <0x00>;
+		clock-frequency = <125000000>;
+		clock-output-names = "gmac1_clkin";
+		compatible = "fixed-clock";
+	};
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&pinctrl {
+	usb {
+		vcc5v0_host_en: vcc5v0-host-en {
+			rockchip,pins = <0 RK_PA5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	pcie {
+		pcie30x1_reset_h: pcie30x1-reset-h {
+			rockchip,pins = <0 RK_PC3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+		pcie30x2_reset_h: pcie30x2-reset-h {
+			rockchip,pins = <0 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+		pcie2x1_reset_h: pcie2x1-reset-h {
+			rockchip,pins = <3 RK_PC1 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	gmac-reset {
+		gmac0_reset: gmac0-reset {
+			rockchip,pins = <1 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	leds {
+		led_power_en: led-power-en {
+			rockchip,pins = <0 RK_PC4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};
+
+&cpu0 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&cpu1 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&cpu2 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&cpu3 {
+	cpu-supply = <&vdd_cpu>;
+};
+
+&tsadc {
+	rockchip,hw-tshut-mode = <1>;
+	rockchip,hw-tshut-polarity = <0>;
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&pcie30_phy_grf {
+};
+
+// 注意两条 pcie reset gpio 均与 NSY不同
+// fe270000
+// 这里需要更换uboot版本,因为只有支持的pcie拆分的才能启动这个
+// 不然开启就挂死,更换版本:https://github.com/Kwiboo/u-boot-rockchip
+// https://lists.denx.de/pipermail/u-boot/2023-August/525793.html
+// 这个pcie,可能需要打补丁,使用radxa 版本
+&pcie3x1 {
+		rockchip,bifurcation;
+		vpcie3v3-supply = <&vcc3v3_pcie>;
+		reset-gpios = <&gpio0 RK_PC3 GPIO_ACTIVE_HIGH>;
+		num-lanes = <1>; /*可能不生效,但是拆分需要打补丁,如果是吧,打补丁*/
+		pinctrl-0 = <&pcie30x1_reset_h>;
+		num-viewport = <0x08>;
+		status = "okay";
+};
+
+//fe280000
+&pcie3x2 {
+		rockchip,bifurcation;
+		vpcie3v3-supply = <&vcc3v3_pcie>;
+		reset-gpios = <&gpio0 RK_PC6 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+		num-lanes = <2>;
+		pinctrl-0 = <&pcie30x2_reset_h>;
+		num-viewport = <0x08>;
+		ranges = <0x01000000 0x0 0xf0100000 0x0 0xf0100000 0x0 0x00100000>,
+				<0x02000000 0x0 0xf0200000 0x0 0xf0200000 0x0 0x01e00000>,
+				<0x03000000 0x0 0x40000000 0x4 0x80000000 0x0 0x80000000 >;
+};
+
+&pcie30phy {
+		data-lanes = <1 2>; //配置lan的通道树
+		status = "okay";
+};
+
+&combphy2 {
+		status = "okay";
+};
+
+&pcie2x1 {
+		reset-gpios = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
+		pinctrl-0 = <&pcie2x1_reset_h>;
+		num-lanes = <1>;
+		//for kernel.dts
+		rockchip,perst-inactive-ms = <500>;
+		num-viewport = <0x08>;
+		status = "okay";
+};
+
+/*使用DSA驱动模型*/
+&mdio0 {
+	status = "okay";
+	#address-cells = <1>;
+    #size-cells = <0>;
+
+	rtl8367s: switch@29 {
+			compatible = "realtek,rtl8365mb";
+			reg = <29>;
+			dsa,member = <1 0>;
+			reset-gpios = <&gpio1 RK_PB0 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			reset-assert-us = <20000>;
+			reset-deassert-us = <100000>;
+			pinctrl-0 = <&gmac0_reset>;
+			status = "okay";
+			mdio {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ethphy0: ethernet-phy@0 {
+					reg = <0>;
+				};
+
+				ethphy1: ethernet-phy@1 {
+					reg = <1>;
+				};
+
+				ethphy2: ethernet-phy@2 {
+					reg = <2>;
+				};
+
+				ethphy3: ethernet-phy@3 {
+					reg = <3>;
+				};
+				ethphy4: ethernet-phy@4 {
+					reg = <4>;
+				};
+			};
+			ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					port@0 {
+							reg = <0>;
+							label = "lan1";
+							phy-handle = <&ethphy0>;
+					};
+
+					port@1 {
+							reg = <1>;
+							label = "lan2";
+							phy-handle = <&ethphy1>;
+					};
+
+					port@2 {
+							reg = <2>;
+							label = "lan3";
+							phy-handle = <&ethphy2>;
+					};
+
+					port@3 {
+							reg = <3>;
+							label = "lan4";
+							phy-handle = <&ethphy3>;
+					};
+					port@4 {
+							reg = <4>;
+							label = "wan";
+							phy-handle = <&ethphy4>;
+					};
+
+					port@6 {
+							reg = <6>;
+							ethernet = <&gmac1>;
+							phy-mode = "sgmii";
+							tx-internal-delay-ps = <0>;
+							rx-internal-delay-ps = <0>;
+							fixed-link {
+								speed = <1000>;
+								full-duplex;
+								pause;
+							};
+					};
+					port@7 {
+							reg = <7>;
+							ethernet = <&gmac0>;
+							phy-mode = "rgmii";
+							tx-internal-delay-ps = <0>;
+							rx-internal-delay-ps = <0>;
+							fixed-link {
+								speed = <1000>;
+								full-duplex;
+								pause;
+							};
+					};
+
+			};
+	};
+};
+
+&gmac0 {
+	status = "okay";
+	phy-mode = "rgmii";
+	clock_in_out = "output";
+	// reset gpio 写到交换机配置里面
+	// snps,reset-gpio = <&gpio1 RK_PB0 GPIO_ACTIVE_LOW>;
+	// snps,reset-active-low;
+	// snps,reset-delays-us = <0x00 20000 100000>;
+	assigned-clocks = <&cru SCLK_GMAC0_RX_TX &cru SCLK_GMAC0>;
+	assigned-clock-parents = <&cru SCLK_GMAC0_RGMII_SPEED &cru CLK_MAC0_2TOP>;
+	assigned-clock-rates = <0x0 125000000>;
+	tx_delay = <0x28>;
+	rx_delay = <0x37>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&gmac0_miim &gmac0_tx_bus2 &gmac0_rx_bus2 &gmac0_rgmii_clk &gmac0_rgmii_bus /*&gmac0_reset*/>;
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+		pause;
+	};
+};
+
+&mdio1 {
+	status = "okay";
+};
+
+&pipe_phy_grf1 {
+	status = "okay";
+};
+
+&combphy1 {
+	rockchip,sgmii-mac-sel = <1>;
+	status = "okay";
+};
+
+&xpcs {
+	status = "okay";
+};
+
+&gmac1 {
+	status = "okay";
+	phy-mode = "sgmii";
+	clock_in_out = "input";
+	rockchip,pipegrf = <&pipegrf>;
+	rockchip,xpcs = <&xpcs>;
+	assigned-clocks = <&cru SCLK_GMAC1_RX_TX>;
+	assigned-clock-parents = <&gmac1_xpcsclk>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&gmac1m1_miim>;
+	power-domains = <&power RK3568_PD_PIPE>;
+	phys = <&combphy1 PHY_TYPE_SGMII>;
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+		pause;
+	};
+};
+
+&usb2phy0 {
+	status = "okay";
+};
+
+&usb2phy0_host {
+	//phy-supply = <&vcc5v0_host>;
+	status = "okay";
+};
+
+&usb2phy0_otg {
+	status = "okay";
+};
+
+&usb_host0_xhci {
+	dr_mode = "host";//自动检测
+	//extcon = <&combphy0>;
+	status = "okay";
+	extcon = <&usb2phy0>; //超过rxda测试
+	snps,dis_enblslpm_quirk;
+	snps,dis-u1-entry-quirk;
+	snps,dis-u2-entry-quirk;
+	snps,dis_u2_susphy_quirk;
+	snps,dis_u3_susphy_quirk;
+	snps,dis-u2-freeclk-exists-quirk;
+	snps,dis-del-phy-power-chg-quirk;
+	snps,dis-tx-ipgap-linecheck-quirk;
+	snps,dis_rxdet_inp3_quirk;
+	snps,parkmode-disable-hs-quirk;
+	snps,parkmode-disable-ss-quirk;
+	quirk-skip-phy-init;
+};
+
+&usb_host1_xhci {
+	dr_mode = "host";//自动检测
+	snps,dis_enblslpm_quirk;
+	snps,dis-u2-freeclk-exists-quirk;
+	snps,dis-del-phy-power-chg-quirk;
+	snps,dis-tx-ipgap-linecheck-quirk;
+	snps,dis_rxdet_inp3_quirk;
+	snps,parkmode-disable-hs-quirk;
+	snps,parkmode-disable-ss-quirk;
+	status = "okay";
+};
+
+&sata2 {
+	status = "disabled";
+};
+
+&pmu_io_domains {
+	status = "disabled";
+};
+
+&pwm0 {
+	status = "okay";
+};
+
+&pwm1 {
+	status = "okay";
+};
+
+&pwm2 {
+	status = "disable";
+};
+
+&pwm3 {
+	status = "disable";
+};
+
+&power {
+	status = "okay";
+};
+
+&gpu {
+	status = "disabled";
+};
+
+&vpu {
+	status = "disabled";
+};
+
+&rga {
+	status = "okay";
+};
+
+&vepu {
+	status = "disabled";
+};
+
+&vop {
+	status = "disabled";
+};
+
+//sdhci@fe310000
+&sdhci {
+	max-frequency = <200000000>;
+	bus-width = <8>;
+	no-sdio;
+	no-sd;
+	supports-emmc;
+	non-removable;
+	cap-mmc-highspeed;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	mmc-hs400-1_8v;
+	mmc-hs400-enhanced-strobe;
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_bus8 &emmc_clk &emmc_cmd &emmc_datastrobe>;
+	full-pwr-cycle-in-suspend;
+	status = "okay";
+};
+
+//dwmmc@fe000000
+&sdmmc2 {
+	max-frequency = <150000000>;
+	fifo-depth = <256>;
+	no-sd;
+	no-mmc;
+	bus-width = <4>;
+	disable-wp;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	keep-power-in-suspend;
+	sd-uhs-sdr104;
+	non-removable;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc2m0_bus4 &sdmmc2m0_cmd &sdmmc2m0_clk>;
+	status = "disabled";
+};
+
+//dwmmc@fe2b0000
+&sdmmc0 {
+	max-frequency = <150000000>;
+	fifo-depth = <256>;
+	no-sdio;
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	cap-sd-highspeed;
+	disable-wp;
+	sd-uhs-sdr104;
+	vmmc-supply = <&vcc3v3_sd>;
+	vqmmc-supply = <&vccio_sd>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc0_bus4 &sdmmc0_clk &sdmmc0_cmd &sdmmc0_det>;
+	status = "disabled";
+};
+
+&combphy0 {
+	status = "okay";
+};
+
+&csi_dphy {
+	status = "disabled";
+};
+
+/* Add #address-cells, #size-cells */
+&sfc {
+	status = "okay";
+	#address-cells = <1>;  /* One cell for the chip select */
+	#size-cells = <0>;     /* No cell for the size */
+	assigned-clocks = <&cru SCLK_SFC>;
+	assigned-clock-rates = <100000000>;
+	flash@0 {
+		compatible = "spi-nor";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		spi-rx-bus-width = <1>;
+		spi-tx-bus-width = <1>;
+	};
+};
+
+&rng {
+	reset-names = "reset";
+	status = "okay";
+};
+
+//i2c@fe5a0000
+&i2c1 {
+	status = "disabled";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&i2c5 {
+	status = "disabled";
+};
+
+&wdt {
+	status = "okay";
+};
+
+&uart8 {
+	status = "disabled";
+};
+
+&pwm4 {
+	status = "disabled";
+};
+
+&pwm5 {
+	status = "disabled";
+};
+
+&pwm7 {
+	status = "disabled";
+};
+
+&pwm8 {
+	status = "disabled";
+};
+
+&pwm9 {
+	status = "disabled";
+};
+
+//fe720000
+&saradc {
+	status = "okay";
+	vref-supply = <&vcc_1v8>;
+};

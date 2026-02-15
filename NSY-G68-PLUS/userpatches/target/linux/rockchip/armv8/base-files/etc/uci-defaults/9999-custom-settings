@@ -1,0 +1,32 @@
+#!/bin/sh
+uci -q batch <<-EOF
+set system.@system[0].timezone="CST-8"
+set system.@system[0].zonename="Asia/Shanghai"
+delete system.ntp.server
+add_list system.ntp.server="ntp1.aliyun.com"
+add_list system.ntp.server="ntp.tencent.com"
+add_list system.ntp.server="ntp.ntsc.ac.cn"
+add_list system.ntp.server="cn.ntp.org.cn"
+commit system
+set wireless.radio0.disabled='0'
+set wireless.radio1.disabled='0'
+commit wireless
+EOF
+
+while uci -q delete https-dns-proxy.@https-dns-proxy[-1]; do :; done
+uci -q batch <<-EOF
+add https-dns-proxy https-dns-proxy
+set https-dns-proxy.@https-dns-proxy[-1].resolver_url='https://doh.pub/dns-query'
+set https-dns-proxy.@https-dns-proxy[-1].bootstrap_dns='119.29.29.29'
+set https-dns-proxy.@https-dns-proxy[-1].isten_port='5053'
+add https-dns-proxy https-dns-proxy
+set https-dns-proxy.@https-dns-proxy[-1].resolver_url='https://dns.alidns.com/dns-query'
+set https-dns-proxy.@https-dns-proxy[-1].bootstrap_dns='223.6.6.6'
+set https-dns-proxy.@https-dns-proxy[-1].isten_port='5054'
+commit https-dns-proxy
+EOF
+
+[ -f /etc/sysctl.d/11-nf-conntrack.conf ] && sed -i '$ a\net.netfilter.nf_conntrack_max=65535' /etc/sysctl.d/11-nf-conntrack.conf
+[ -f /etc/samba/smb.conf.template ] && sed -i.bak 's/#preferred master = yes/preferred master = yes\n\tdomain master = yes/' /etc/samba/smb.conf.template
+
+exit 0
