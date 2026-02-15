@@ -54,8 +54,13 @@ setup_files
 
 # 修正自动编译 openwrt 时 rust 选项导致错误
 if [[ -f "feeds/packages/lang/rust/Makefile" ]]; then
-    sed -i '/^\s*\$(\PYTHON) \$(\HOST_BUILD_DIR)\/x\.py \\/a\\t\t--ci false \\' feeds/packages/lang/rust/Makefile
-    echo "Rust 编译修正完成"
+    if grep -q '\-\-ci' feeds/packages/lang/rust/Makefile; then
+        sed -i 's/--ci [a-z]*/--ci false/g' feeds/packages/lang/rust/Makefile
+        echo "Rust 编译修正完成（替换已有参数）"
+    else
+        sed -i '/^\s*\$(\PYTHON) \$(\HOST_BUILD_DIR)\/x\.py \\/a\\t\t--ci false \\' feeds/packages/lang/rust/Makefile
+        echo "Rust 编译修正完成（添加新参数）"
+    fi
 fi
 
 # U-Boot Makefile 添加 G68-Plus 机型定义
