@@ -249,9 +249,9 @@
 		//rgmii
 		realtek,extif2 = <0 0 1 1 1 1 1 1 2>;
 		//realtek,disable-leds;
-		status = "okay";
+		status = "disabled";
 	};
-	
+
 	rockchip-suspend {
 		compatible = "rockchip,pm-rk3568";
 		status = "okay";
