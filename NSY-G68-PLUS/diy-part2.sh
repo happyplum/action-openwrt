@@ -9,6 +9,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 date_version=$(date +"%Y%m%d%H")
 echo $date_version > version
 
+# 交换机驱动模式: dsa 或 switch (默认 switch，与参考项目一致)
+SWMODE="${SWMODE:-switch}"
+echo "========================================="
+echo "交换机驱动模式: ${SWMODE}"
+echo "========================================="
+
 # 从 GitHub 稀疏克隆多个目录
 clone_from_github() {
     local tmp_dir=$(mktemp -d)
@@ -52,6 +58,23 @@ setup_files() {
 # 设置所需文件
 setup_files
 
+# 根据交换机模式选择对应的配置文件
+switch_config() {
+    local src="$1" dest="$2" label="$3"
+    cp -f "$src" "$dest" 2>/dev/null && echo "已替换为 ${label} $(basename "$dest")"
+}
+
+BOARD_DTS_DIR="userpatches/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip"
+BOARD_NETWORK_DIR="userpatches/target/linux/rockchip/armv8/base-files/etc/board.d"
+
+echo "切换到 ${SWMODE} 模式..."
+switch_config "${BOARD_DTS_DIR}/rk3568-nsy-g68-plus-${SWMODE}.dts" \
+              "${BOARD_DTS_DIR}/rk3568-nsy-g68-plus.dts" "${SWMODE}"
+switch_config "${BOARD_NETWORK_DIR}/02_network.${SWMODE}" \
+              "${BOARD_NETWORK_DIR}/02_network" "${SWMODE}"
+switch_config "${SCRIPT_DIR}/.config.${SWMODE}" \
+              "${SCRIPT_DIR}/.config" "${SWMODE}"
+
 # 修正自动编译 openwrt 时 rust 选项导致错误
 if [[ -f "feeds/packages/lang/rust/Makefile" ]]; then
     if grep -q '\-\-ci' feeds/packages/lang/rust/Makefile; then
@@ -82,16 +105,16 @@ fi
 # mt76 固件路径修改
 if [[ -f "package/kernel/mt76/Makefile" ]]; then
     sed -i '/[ \t]*\$([^)]*PKG_BUILD_DIR[^)]*)\/firmware\/mt7615_rom_patch\.bin[ \t]*\\$/a\
-		.\/firmware\/mt7615e_rf.bin \\' package/kernel/mt76/Makefile
+			.\/firmware\/mt7615e_rf.bin \\' package/kernel/mt76/Makefile
 
     sed -i '/[ \t]*$(PKG_BUILD_DIR)\/firmware\/mt7916_wa.bin[ \t]*\\$/c\
-		.\/firmware\/mt7916_wa.bin \\' package/kernel/mt76/Makefile
+			.\/firmware\/mt7916_wa.bin \\' package/kernel/mt76/Makefile
     sed -i '/[ \t]*$(PKG_BUILD_DIR)\/firmware\/mt7916_wm.bin[ \t]*\\$/c\
-		.\/firmware\/mt7916_wm.bin \\' package/kernel/mt76/Makefile
+			.\/firmware\/mt7916_wm.bin \\' package/kernel/mt76/Makefile
     sed -i '/[ \t]*$(PKG_BUILD_DIR)\/firmware\/mt7916_rom_patch.bin[ \t]*\\$/c\
-		.\/firmware\/mt7916_rom_patch.bin \\' package/kernel/mt76/Makefile
+			.\/firmware\/mt7916_rom_patch.bin \\' package/kernel/mt76/Makefile
     sed -i '/[ \t]*\.\/firmware\/mt7916_rom_patch\.bin[ \t]*\\$/a\
-		.\/firmware\/mt7916_eeprom.bin \\' package/kernel/mt76/Makefile
+			.\/firmware\/mt7916_eeprom.bin \\' package/kernel/mt76/Makefile
     echo "mt76 固件路径修改完成"
 fi
 
@@ -124,6 +147,13 @@ echo "rockchip 平台配置完成"
 
 # 添加 G68-Plus 设备定义到 armv8.mk
 if [[ -f "target/linux/rockchip/image/armv8.mk" ]]; then
+    # 根据模式选择 DEVICE_PACKAGES
+    if [[ "${SWMODE}" == "switch" ]]; then
+        SWITCH_PACKAGES="kmod-switch-rtl8367b"
+    else
+        SWITCH_PACKAGES="kmod-dsa-rtl8365mb"
+    fi
+
     echo -e "\\ndefine Device/nsy_g68-plus
   \$(Device/rk3568)
   DEVICE_VENDOR := NSY
@@ -132,10 +162,10 @@ if [[ -f "target/linux/rockchip/image/armv8.mk" ]]; then
   DEVICE_DTS := rk3568-nsy-g68-plus
   UBOOT_DEVICE_NAME := nsy-g68-plus-rk3568
   BOOT_FLOW := pine64-img
-  DEVICE_PACKAGES := kmod-dsa-rtl8365mb
+  DEVICE_PACKAGES := ${SWITCH_PACKAGES}
 endef
 TARGET_DEVICES += nsy_g68-plus" >> target/linux/rockchip/image/armv8.mk
-    echo "设备定义添加完成"
+    echo "设备定义添加完成 (模式: ${SWMODE}, 包: ${SWITCH_PACKAGES})"
 fi
 
 # 应用 patch 目录下的补丁

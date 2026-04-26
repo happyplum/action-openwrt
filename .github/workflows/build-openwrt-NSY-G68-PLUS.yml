@@ -13,6 +13,15 @@ name: Build OpenWrt NSY-G68-PLUS
 on:
   repository_dispatch:
   workflow_dispatch:
+    inputs:
+      SWMODE:
+        description: 'Switch driver mode'
+        required: false
+        default: 'switch'
+        type: choice
+        options:
+          - switch
+          - dsa
   schedule:
     - cron: "0 20 * * *"
 
@@ -30,6 +39,7 @@ env:
   TZ: Asia/Shanghai
   SYSTEM: immortalwrt
   BOARD: g68-plus
+  SWMODE: ${{ github.event.inputs.SWMODE || 'switch' }}
 
 jobs:
   build:
@@ -170,6 +180,8 @@ jobs:
           cd openwrt/
           ${{ github.workspace }}/${DIY_P2_SH} ${DEFAULT_IP}
           rm -rf openwrt/tmp
+        env:
+          SWMODE: ${{ env.SWMODE }}
 
       - name: Make defconfig
         run: |
