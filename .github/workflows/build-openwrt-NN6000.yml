@@ -26,6 +26,8 @@ env:
   DEFAULT_IP: 192.168.7.1
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+  SYSTEM: openwrt-6.x
+  BOARD: nn6000
 
 jobs:
   build:
@@ -100,7 +102,6 @@ jobs:
           ln -sf /builder/ccache ${{ github.workspace }}/openwrt/.ccache
 
           # Set output information
-          echo "build_tag=OpenWrt_${{ inputs.source_branch }}_${{ inputs.openwrt_storage }}_$(date +"%Y.%m")" >> ${GITHUB_ENV}
           echo -e "REPO_URL: [ ${REPO_URL} ]\nREPO_BRANCH: [ ${REPO_BRANCH} ]\nREPO_NAME: [ ${REPO_NAME} ]"
           df -hT ${PWD}
           echo "REPO_NAME=${REPO_NAME}" >> ${GITHUB_ENV}
@@ -184,7 +185,6 @@ jobs:
           cd openwrt/
           [[ -d "output" ]] || mkdir output
           cp -f bin/targets/*/*/*squashfs-sysupgrade.bin output/
-          cp -f .config output/config
           ls -A | grep -vE '^(output|\.ccache)$' | xargs rm -rf || true
           echo "FIRMWARE=${PWD}/output" >> ${{ github.env }}
 
@@ -196,16 +196,22 @@ jobs:
         id: tag
         if: ${{ env.UPLOAD_RELEASE == 'true' && steps.clean.outputs.status == 'success' && !cancelled() }}
         run: |
-          echo "release_tag=${{ env.DEVICE_NAME }}-$(date +"%Y.%m.%d-%H%M")" >> ${{ github.output }}
+          echo "release_tag=${{ env.BOARD }}-$(date +"%Y.%m")" >> ${{ github.output }}
+          echo "DATE=$(date +"%Y-%m-%d %H:%M:%S")" >> ${{ github.env }}
           touch release.txt
           echo "status=success" >> ${{ github.output }}
 
       - name: Upload OpenWrt to Release
-        uses: ncipollo/release-action@main
+        uses: ncipollo/release-action@v1.20.0
         if: ${{ steps.clean.outputs.status == 'success' && !cancelled() }}
         with:
+          name: ${{ env.BOARD }} $(date +"%Y.%m")
           tag: ${{ steps.tag.outputs.release_tag }}
           artifacts: ${{ env.FIRMWARE }}/*
+          body: |
+            **Latest build: ${{ env.DATE }}**
+            **OpenWrt Firmware for ${{ env.BOARD }}**
+            - 默认地址: ${{ env.DEFAULT_IP }}
           allowUpdates: true
           removeArtifacts: false
           replacesArtifacts: true

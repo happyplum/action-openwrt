@@ -215,47 +215,32 @@ jobs:
         if: steps.compile.outputs.status == 'success'
         run: |
           cd $OPENWRT_PATH/bin/targets/rockchip/armv8/
-          cat sha256sums
-          for file in *.gz *.zst; do [ -e "$file" ] || continue; mv "$file" $OPENWRT_PATH/bin/${{ env.FILE_DATE }}-$file; done
-          mv sha256sums *.manifest *.json *.buildinfo $OPENWRT_PATH/bin/
-          cd $OPENWRT_PATH/bin/
-          cp ../.config build.config
-          cp $OPENWRT_PATH/build_dir/target-aarch64_generic_musl/linux-rockchip_armv8/linux*/.config kernel.config 2>/dev/null || true
-          mkdir dist
-          mv packages targets dist/ 2>/dev/null || true
-          tar -zcf ${{ env.FILE_DATE }}-Packages.tar.gz dist --remove-files 2>/dev/null || true
+          mkdir -p $OPENWRT_PATH/release
+          for file in *sysupgrade*; do [ -e "$file" ] || continue; mv "$file" $OPENWRT_PATH/release/${{ env.FILE_DATE }}-$file; done
+          echo "FIRMWARE_PATH=$OPENWRT_PATH/release" >> $GITHUB_ENV
           echo "KERNEL=$(cat *.manifest 2>/dev/null | grep ^kernel | cut -d- -f2 | tr -d ' ')" >> $GITHUB_ENV
-          echo "FIRMWARE_PATH=$PWD" >> $GITHUB_ENV
 
       - name: Generate release tag
         id: tag
         if: ${{ env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled() }}
         run: |
-          echo "release_tag=${{ env.TAG_DATE }}-${{ env.BOARD }}" >> ${{ github.output }}
+          echo "release_tag=${{ env.BOARD }}-$(date +"%Y.%m")" >> ${{ github.output }}
           echo "status=success" >> ${{ github.output }}
 
       - name: Upload OpenWrt to Release
         uses: ncipollo/release-action@v1.20.0
         if: ${{ steps.compile.outputs.status == 'success' && !cancelled() }}
         with:
-          name: R${{ env.DATE }} for ${{ env.BOARD }}
-          commit: ${{ github.sha }}
+          name: ${{ env.BOARD }} $(date +"%Y.%m")
           allowUpdates: true
+          replacesArtifacts: true
           tag: ${{ steps.tag.outputs.release_tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: ${{ env.FIRMWARE_PATH }}/*
           body: |
-            **This is ImmortalWrt Firmware for ${{ env.BOARD }}**
-            ### 📒 固件信息
-            - 💻 平台架构: ${{ env.DEVICE_TARGET }}-${{ env.DEVICE_SUBTARGET }} (rk3568)
-            - ⚽ 固件源码: ${{ env.REPO_URL }}
-            - 💝 源码分支: ${{ env.REPO_BRANCH }}
-            - 🚀 内核版本: ${{ env.KERNEL }}
-            - 🌐 默认地址: ${{ env.DEFAULT_IP }}
-            - 🔑 默认密码: (空)
-            ### 🧊 固件版本
-            - 固件编译前最后一次➦[主源码](${{ env.REPO_URL }})更新记录
-            - ${{ env.COMMIT_AUTHOR }}
-            - ${{ env.COMMIT_DATE }}
-            - ${{ env.COMMIT_MESSAGE }}
-            - ${{ env.COMMIT_HASH }}
+            **Latest build: ${{ env.DATE }}**
+            **ImmortalWrt Firmware for ${{ env.BOARD }}**
+            - 平台: ${{ env.DEVICE_TARGET }}-${{ env.DEVICE_SUBTARGET }} (rk3568)
+            - 内核: ${{ env.KERNEL }}
+            - 默认地址: ${{ env.DEFAULT_IP }}
+            - 默认密码: (空)
