@@ -8,8 +8,6 @@ name: Delete older releases and workflows
 on:
   repository_dispatch:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 1 * *"
     inputs:
       delete_releases:
         description: "Delete Releases file?"
@@ -86,6 +84,9 @@ on:
         required: false
         default: true
         type: boolean
+
+  schedule:
+    - cron: "0 0 1 * *"
 
 env:
   TZ: Etc/UTC
