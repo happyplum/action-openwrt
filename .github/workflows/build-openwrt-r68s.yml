@@ -181,7 +181,7 @@ jobs:
           [[ -d "output" ]] || mkdir output
           # cp -f bin/targets/*/*/*rootfs.tar.gz output/
           cp -f bin/targets/*/*/*sysupgrade.img.gz output/
-          cd output && for f in *; do mv "$f" "$(date +"%Y%m%d")-$f"; done
+          (cd output && shopt -s nullglob && for f in *; do mv "$f" "$(date +"%Y%m%d")-$f"; done)
           ls -A | grep -vE '^(output|\.ccache)$' | xargs rm -rf || true
           echo "FIRMWARE=${PWD}/output" >> ${{ github.env }}
 
