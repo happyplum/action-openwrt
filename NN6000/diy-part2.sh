@@ -32,16 +32,6 @@ wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/
 rm -rf package/base-files/files/etc/sysctl.d/1-netfilter.conf
 wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/1-netfilter.conf
 
-# 下载v2ray的dat数据
-rm -rf feeds/packages/net/v2ray-geodata
-rm -rf package/base-files/files/usr/share/v2ray/geoip.dat
-wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-rm -rf package/base-files/files/usr/share/v2ray/geosite.dat
-wget -P package/base-files/files/usr/share/v2ray https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-rm -rf package/base-files/files/usr/share/xray
-mkdir package/base-files/files/usr/share/xray
-ln -s /usr/share/v2ray/geoip.dat package/base-files/files/usr/share/xray/geoip.dat
-ln -s /usr/share/v2ray/geosite.dat package/base-files/files/usr/share/xray/geosite.dat
 # ------------------------------- Main source ends -------------------------------
 
 # ------------------------------- Other started -------------------------------
@@ -52,12 +42,12 @@ rm -rf package/mosdns
 git clone --depth=1 -b v5 --single-branch https://github.com/sbwml/luci-app-mosdns package/mosdns
 
 #smartdns
-# rm -rf package/luci-app-smartdns
-# rm -rf feeds/packages/net/smartdns
-# git clone --depth=1 --single-branch https://github.com/pymumu/luci-app-smartdns package/luci-app-smartdns
-# git clone --depth=1 --single-branch https://github.com/pymumu/openwrt-smartdns feeds/packages/net/smartdns
-# sed -i 's/227eef2dfffb56445145e7b8a76f6d6fa678ce3e99aceec58f7d35564f4cfafd/4401734712dd034eb1088ce440d1bc64d053dfcd6f63f66c08cd48ab68593042/g' feeds/packages/net/smartdns/Makefile
-# sed -i 's/609fec024396a3a26278ef9fe7bd49aeca478e3163fc53c699a5f402fa0320f0/f8bfb91ae0992dd62392ebb2b7d968d514f7cbc3cc6a5d975dafdd6b27bf0a0c/g' feeds/packages/net/smartdns/Makefile
+rm -rf feeds/packages/net/smartdns
+git clone --depth=1 https://github.com/pymumu/openwrt-smartdns feeds/packages/net/smartdns
+rm -rf feeds/luci/applications/luci-app-smartdns
+git clone --depth=1 https://github.com/pymumu/luci-app-smartdns feeds/luci/applications/luci-app-smartdns
+# Remove MIRROR_HASH to skip hash verification (pymumu's pre-set hashes don't match actual git archive output)
+sed -i '/PKG_MIRROR_HASH\|MIRROR_HASH/d' feeds/packages/net/smartdns/Makefile
 
 # Apply patch
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
