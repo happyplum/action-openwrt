@@ -32,6 +32,9 @@ wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/
 rm -rf package/base-files/files/etc/sysctl.d/1-netfilter.conf
 wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/1-netfilter.conf
 
+# Lock cpufreq governor to performance at boot (silently skipped if cpufreq unavailable, e.g. no PMIC)
+sed -i '/exit 0/i for cpu in /sys/devices/system/cpu/cpufreq/policy*; do [ -d "${cpu}" ] && echo "performance" > "${cpu}/scaling_governor"; done' package/base-files/files/etc/rc.local
+
 # ------------------------------- Main source ends -------------------------------
 
 # ------------------------------- Other started -------------------------------
