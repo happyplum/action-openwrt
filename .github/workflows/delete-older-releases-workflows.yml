@@ -86,7 +86,7 @@ on:
         type: boolean
 
   schedule:
-    - cron: "0 0 1 * *"
+    - cron: "17 1 1 * *"
 
 permissions:
   contents: write
@@ -97,8 +97,8 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
-    if: ${{ github.event.sender == null || github.event.repository.owner.id == github.event.sender.id }}
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event.sender == null || github.event.repository.owner.id == github.event.sender.id }}
 
     steps:
       - name: Checkout
@@ -109,8 +109,27 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo timedatectl set-timezone "${TZ}"
+          if command -v timedatectl >/dev/null 2>&1; then
+            sudo timedatectl set-timezone "${TZ}" || true
+          fi
           echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Print resolved cleanup context
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "repository=${{ github.repository }}"
+          echo "workflow=${{ github.workflow }}"
+          echo "actor=${{ github.actor }}"
+          echo "sender_id=${{ github.event.sender.id || 'n/a' }}"
+          echo "resolved_delete_releases=${{ github.event_name != 'workflow_dispatch' || inputs.delete_releases }}"
+          echo "resolved_delete_tags=${{ github.event_name != 'workflow_dispatch' || inputs.delete_tags }}"
+          echo "resolved_prerelease_option=${{ inputs.prerelease_option || 'all' }}"
+          echo "resolved_releases_keep_latest=${{ inputs.releases_keep_latest || '10' }}"
+          echo "resolved_releases_keep_keyword=${{ inputs.releases_keep_keyword || '' }}"
+          echo "resolved_delete_workflows=${{ github.event_name != 'workflow_dispatch' || inputs.delete_workflows }}"
+          echo "resolved_workflows_keep_day=${{ inputs.workflows_keep_day || '30' }}"
+          echo "resolved_workflows_keep_keyword=${{ inputs.workflows_keep_keyword || '' }}"
+          echo "resolved_out_log=${{ github.event_name != 'workflow_dispatch' || inputs.out_log }}"
 
       - name: Delete releases and workflows runs
         uses: ophub/delete-releases-workflows@main
