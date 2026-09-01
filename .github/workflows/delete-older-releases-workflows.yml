@@ -31,7 +31,7 @@ on:
       releases_keep_latest:
         description: "How many latest releases to keep."
         required: false
-        default: "10"
+        default: "4"
         type: choice
         options:
           - 30
@@ -86,7 +86,11 @@ on:
         type: boolean
 
   schedule:
-    - cron: "17 1 1 * *"
+    # 每月 1 号 15:37 UTC：错开整点与月初拥塞窗口（GitHub 调度器高峰期会延迟/丢弃定时任务），
+    # 且晚于当天 01:23 UTC 左右的月度构建发布，清理时窗口内已包含当月新 Release
+    - cron: "37 15 1 * *"
+    # 次日 09:53 UTC 补跑一次兜底；按数量保留是幂等操作，重复执行无副作用
+    - cron: "53 9 2 * *"
 
 permissions:
   contents: write
@@ -124,7 +128,7 @@ jobs:
           echo "resolved_delete_releases=${{ github.event_name != 'workflow_dispatch' || inputs.delete_releases }}"
           echo "resolved_delete_tags=${{ github.event_name != 'workflow_dispatch' || inputs.delete_tags }}"
           echo "resolved_prerelease_option=${{ inputs.prerelease_option || 'all' }}"
-          echo "resolved_releases_keep_latest=${{ inputs.releases_keep_latest || '10' }}"
+          echo "resolved_releases_keep_latest=${{ inputs.releases_keep_latest || '4' }}"
           echo "resolved_releases_keep_keyword=${{ inputs.releases_keep_keyword || '' }}"
           echo "resolved_delete_workflows=${{ github.event_name != 'workflow_dispatch' || inputs.delete_workflows }}"
           echo "resolved_workflows_keep_day=${{ inputs.workflows_keep_day || '30' }}"
@@ -137,7 +141,7 @@ jobs:
           delete_releases: ${{ github.event_name != 'workflow_dispatch' || inputs.delete_releases }}
           delete_tags: ${{ github.event_name != 'workflow_dispatch' || inputs.delete_tags }}
           prerelease_option: ${{ inputs.prerelease_option || 'all' }}
-          releases_keep_latest: ${{ inputs.releases_keep_latest || '10' }}
+          releases_keep_latest: ${{ inputs.releases_keep_latest || '4' }}
           releases_keep_keyword: ${{ inputs.releases_keep_keyword || '' }}
           delete_workflows: ${{ github.event_name != 'workflow_dispatch' || inputs.delete_workflows }}
           workflows_keep_day: ${{ inputs.workflows_keep_day || '30' }}
