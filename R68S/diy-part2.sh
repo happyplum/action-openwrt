@@ -95,6 +95,7 @@ git clone --depth=1 -b v5 --single-branch https://github.com/sbwml/luci-app-mosd
 # git apply ../config/patches/{0001*,0002*}.patch --directory=feeds/luci
 #
 # ------------------------------- Other ends -------------------------------
+bash "$(dirname "${BASH_SOURCE[0]}")/../pin-golang.sh" || exit $?
 ./scripts/feeds install -a
 
 echo "========================="

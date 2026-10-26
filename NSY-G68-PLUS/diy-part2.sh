@@ -237,6 +237,7 @@ git clone --depth=1 -b v5 --single-branch https://github.com/sbwml/luci-app-mosd
 
 # ------------------------------- Other ends -------------------------------
 
+bash "${SCRIPT_DIR}/../pin-golang.sh" || exit $?
 ./scripts/feeds install -a
 
 echo "========================="

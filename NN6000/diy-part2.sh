@@ -57,6 +57,7 @@ sed -i '/PKG_MIRROR_HASH\|MIRROR_HASH/d' feeds/packages/net/smartdns/Makefile
 #
 # ------------------------------- Other ends -------------------------------
 
+bash "$(dirname "${BASH_SOURCE[0]}")/../pin-golang.sh" || exit $?
 ./scripts/feeds install -a
 
 echo "========================="

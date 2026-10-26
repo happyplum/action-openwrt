@@ -6,6 +6,18 @@
 [P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
 [ophub/amlogic-s9xxx-openwrt](https://github.com/ophub/amlogic-s9xxx-openwrt)
 
+## Go 构建版本
+
+NN6000、R68S、NSY-G68-PLUS 和 SystemReady 的 DIY2 在最后一次更新 feeds 后，
+统一调用根目录 `pin-golang.sh`，将 `feeds/packages/lang/golang` 固定为
+ImmortalWrt packages 提交 `0ee3fbc2992c75b2668933467479343c5e4c75e9` 的完整 Go 1.27.2 构建配方，
+以满足 Xray 26.10.21 对 Go 1.27 的要求。版本只在该脚本维护，保留官方源码校验。
+该处理会清理旧 Go 安装链接、刷新索引并重新安装 Go 构建包；失败时停止 DIY2。
+固定后不可再次更新 packages 源。Ophub R68S 仅打包已有 rootfs，不适用此处理。
+
+定向测试：`python3 -B -m unittest discover -s tests -v`（在 Linux/WSL 中执行，需要 Bash）。
+Go 包固定会影响这些固件内的全部 Go 软件包，发布前需核对实际 host Go 版本、Xray 和完整固件构建结果。
+
 WSL
 由于 WSL 的 PATH 中包含带有空格的 Windows 路径，有可能会导致编译失败，请在 make 前面加上：
 

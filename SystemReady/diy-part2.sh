@@ -73,6 +73,7 @@ echo "DISTRIB_SOURCEBRANCH='master'" >>package/base-files/files/etc/openwrt_rele
 #
 # ------------------------------- Other ends -------------------------------
 
+bash "$(dirname "${BASH_SOURCE[0]}")/../pin-golang.sh" || exit $?
 ./scripts/feeds install -a
 
 echo "========================="
