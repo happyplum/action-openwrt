@@ -6,6 +6,18 @@
 [P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
 [ophub/amlogic-s9xxx-openwrt](https://github.com/ophub/amlogic-s9xxx-openwrt)
 
+## NSY-G68-PLUS 交换机模式
+
+默认使用 DSA，定时构建也使用 DSA；手动构建可通过 `SWMODE` 显式选择 `switch`。
+DIY2 按模式将 DTS、`02_network` 和 `.config` 模板写入 OpenWrt 构建目录，
+并选择对应驱动包；缺失任一模板时停止构建。DSA 使用 `kmod-dsa-rtl8365mb`，
+网口为 `lan1` 至 `lan4` 和 `wan`，旧交换机节点在 DSA DTS 中禁用。
+选定模式后，构建目录只保留生效的 `02_network`，避免 `board_detect` 依次执行两份模式模板而覆盖网络配置。
+
+板级内核补丁当前位于 `NSY-G68-PLUS/userpatches/target/linux/rockchip/patches-6.12`，
+工作流跟随的源码分支为 `master`，完整构建前需核对实际内核与补丁版本是否匹配。
+本地模式回归验证文件选择及驱动包接线，不替代完整固件构建和实机网口测试。
+
 ## Go 构建版本
 
 NN6000、R68S、NSY-G68-PLUS 和 SystemReady 的 DIY2 在最后一次更新 feeds 后，

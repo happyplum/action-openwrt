@@ -17,11 +17,11 @@ on:
       SWMODE:
         description: 'Switch driver mode'
         required: false
-        default: 'switch'
+        default: 'dsa'
         type: choice
         options:
-          - switch
           - dsa
+          - switch
   schedule:
     - cron: "0 20 * * *"
 
@@ -38,7 +38,7 @@ env:
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
   BOARD: g68-plus
-  SWMODE: ${{ github.event.inputs.SWMODE || 'switch' }}
+  SWMODE: ${{ github.event.inputs.SWMODE || 'dsa' }}
 
 jobs:
   build:

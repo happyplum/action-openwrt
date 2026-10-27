@@ -9,8 +9,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 date_version=$(date +"%Y%m%d%H")
 echo $date_version > version
 
-# 交换机驱动模式: dsa 或 switch (默认 switch，与参考项目一致)
-SWMODE="${SWMODE:-switch}"
+# 交换机驱动模式: dsa 或 switch (默认 dsa)
+SWMODE="${SWMODE:-dsa}"
 echo "========================================="
 echo "交换机驱动模式: ${SWMODE}"
 echo "========================================="
@@ -22,8 +22,7 @@ clone_from_github() {
     git clone --depth=1 --filter=blob:none --sparse "${GITHUB_REPO}" "${tmp_dir}" 2>/dev/null
     (cd "${tmp_dir}" && git sparse-checkout set "NSY-G68-PLUS/userpatches" "NSY-G68-PLUS/patch" 2>/dev/null)
     if [[ -d "${tmp_dir}/NSY-G68-PLUS/userpatches" ]]; then
-        mkdir -p "./userpatches"
-        cp -r "${tmp_dir}/NSY-G68-PLUS/userpatches/"* "./userpatches/" 2>/dev/null
+        cp -r "${tmp_dir}/NSY-G68-PLUS/userpatches/." ./
         echo "userpatches 克隆完成"
     else
         echo "警告: 无法克隆 userpatches"
@@ -61,19 +60,21 @@ setup_files
 # 根据交换机模式选择对应的配置文件
 switch_config() {
     local src="$1" dest="$2" label="$3"
-    cp -f "$src" "$dest" 2>/dev/null && echo "已替换为 ${label} $(basename "$dest")"
+    cp -f "$src" "$dest" && echo "已替换为 ${label} $(basename "$dest")"
 }
 
-BOARD_DTS_DIR="userpatches/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip"
-BOARD_NETWORK_DIR="userpatches/target/linux/rockchip/armv8/base-files/etc/board.d"
+BOARD_DTS_DIR="target/linux/rockchip/files/arch/arm64/boot/dts/rockchip"
+BOARD_NETWORK_DIR="target/linux/rockchip/armv8/base-files/etc/board.d"
 
 echo "切换到 ${SWMODE} 模式..."
 switch_config "${BOARD_DTS_DIR}/rk3568-nsy-g68-plus-${SWMODE}.dts" \
-              "${BOARD_DTS_DIR}/rk3568-nsy-g68-plus.dts" "${SWMODE}"
+              "${BOARD_DTS_DIR}/rk3568-nsy-g68-plus.dts" "${SWMODE}" || exit $?
 switch_config "${BOARD_NETWORK_DIR}/02_network.${SWMODE}" \
-              "${BOARD_NETWORK_DIR}/02_network" "${SWMODE}"
+              "${BOARD_NETWORK_DIR}/02_network" "${SWMODE}" || exit $?
 switch_config "${SCRIPT_DIR}/.config.${SWMODE}" \
-              "${SCRIPT_DIR}/.config" "${SWMODE}"
+              ".config" "${SWMODE}" || exit $?
+# board_detect 会执行 board.d 下的所有文件，模式模板不能留在运行目录。
+rm -f -- "${BOARD_NETWORK_DIR}/02_network.dsa" "${BOARD_NETWORK_DIR}/02_network.switch" || exit $?
 
 # 修正自动编译 openwrt 时 rust 选项导致错误
 if [[ -f "feeds/packages/lang/rust/Makefile" ]]; then
