@@ -53,7 +53,7 @@
 +	(RTL8365MB_VLAN_PVID_CTRL_BASE + ((port) >> 1))
 +/* required as FIELD_PREP cannot use non-constant masks */
 +#define RTL8365MB_VLAN_PVID_CTRL_MASK(port) \
-+	(0xFF << RTL8365MB_VLAN_PVID_CTRL_OFFSET(port))
++	(0x1F << RTL8365MB_VLAN_PVID_CTRL_OFFSET(port))
 +#define RTL8365MB_VLAN_PVID_CTRL_OFFSET(port) \
 +	(((port) & 1) << 3)
 +
@@ -133,7 +133,7 @@
  	struct rtl8365mb_port ports[RTL8365MB_MAX_NUM_PORTS];
  };
  
-@@ -828,6 +940,486 @@ static int rtl8365mb_phy_write(struct re
+@@ -828,6 +940,569 @@ static int rtl8365mb_phy_write(struct re
  	return 0;
  }
  
@@ -177,7 +177,7 @@
 +		/* vendor driver checks busy flag only on read */
 +		ret = regmap_read_poll_timeout(priv->map,
 +				RTL8365MB_TABLE_LUT_REG, lut,
-+				!FIELD_PREP(RTL8365MB_TABLE_LUT_BUSY_FLAG_MASK, lut),
++				!FIELD_GET(RTL8365MB_TABLE_LUT_BUSY_FLAG_MASK, lut),
 +				10, 100);
 +		if (ret)
 +			goto out;
@@ -205,7 +205,7 @@
 +
 +		ret = regmap_read_poll_timeout(priv->map,
 +				RTL8365MB_TABLE_LUT_REG, lut,
-+				!FIELD_PREP(RTL8365MB_TABLE_LUT_BUSY_FLAG_MASK,
++				!FIELD_GET(RTL8365MB_TABLE_LUT_BUSY_FLAG_MASK,
 +					    lut),
 +				10, 100);
 +		if (ret)
@@ -288,7 +288,8 @@
 +
 +static int rtl8365mb_vlan4k_set(struct dsa_switch *ds, int port,
 +			      const struct switchdev_obj_port_vlan *vlan,
-+			      struct netlink_ext_ack *extack, bool include)
++			      struct netlink_ext_ack *extack, bool include,
++			      const u16 *original)
 +{
 +	u16 vlan_entry[RTL8365MB_VLAN_4K_ENTRY_SIZE] = {0, 0, 0};
 +	struct realtek_priv *priv = ds->priv;
@@ -307,14 +308,18 @@
 +		return -EINVAL;
 +	}
 +
-+	ret = rtl8365mb_table_access(priv, RTL8365MB_TABLE_CVLAN,
-+				     RTL8365MB_TABLE_READ, vlan->vid,
-+				     vlan_entry);
-+	if (ret) {
-+		if (extack)
-+			NL_SET_ERR_MSG_MOD(extack, \
-+					   "Failed to read VLAN 4k table");
-+		return ret;
++	if (original) {
++		memcpy(vlan_entry, original, sizeof(vlan_entry));
++	} else {
++		ret = rtl8365mb_table_access(priv, RTL8365MB_TABLE_CVLAN,
++					     RTL8365MB_TABLE_READ, vlan->vid,
++					     vlan_entry);
++		if (ret) {
++			if (extack)
++				NL_SET_ERR_MSG_MOD(extack, \
++						   "Failed to read VLAN 4k table");
++			return ret;
++		}
 +	}
 +
 +	/* vlan4k.vid = vlan->vid; */
@@ -365,11 +370,21 @@
 +	buf[3] |= FIELD_PREP(RTL8365MB_VLAN_MC_CONF3_EVID_MSK, vlanmc->vid);
 +}
 +
++struct rtl8365mb_vlan_undo {
++	u16 vlan4k[RTL8365MB_VLAN_4K_ENTRY_SIZE];
++	u16 vlanmc[RTL8365MB_VLAN_MC_CONF_ENTRY_SIZE];
++	u32 pvid, accept;
++	int mc_index;
++	bool mc_written, pvid_written, accept_written;
++};
++
 +static int rtl8365mb_vlanmc_set(struct dsa_switch *ds, int port,
 +			      const struct switchdev_obj_port_vlan *vlan,
-+			      struct netlink_ext_ack *extack, bool include)
++			      struct netlink_ext_ack *extack, bool include,
++			      struct rtl8365mb_vlan_undo *undo)
 +{
 +	u16 vlan_entry[RTL8365MB_VLAN_MC_CONF_ENTRY_SIZE] = {0};
++	u16 vlan4k_entry[RTL8365MB_VLAN_4K_ENTRY_SIZE];
 +	enum rtl8365mb_frame_type accepted_frame;
 +	struct realtek_priv *priv = ds->priv;
 +	struct rtl8366_vlan_4k vlan4k = {0};
@@ -408,11 +423,17 @@
 +
 +		evid = FIELD_GET(RTL8365MB_VLAN_MC_CONF3_EVID_MSK, vlan_entry[3]);
 +
-+		if (evid == vlan->vid)
++		if (evid == vlan->vid) {
++			if (undo)
++				memcpy(undo->vlanmc, vlan_entry, sizeof(vlan_entry));
 +			break;
++		}
 +
-+		if (evid == 0x0 && first_unused < 0)
++		if (evid == 0x0 && first_unused < 0) {
 +			first_unused = vlanmc_idx;
++			if (undo)
++				memcpy(undo->vlanmc, vlan_entry, sizeof(vlan_entry));
++		}
 +	}
 +
 +	if (vlanmc_idx == RTL8365MB_VLAN_MC_CONF_SIZE) {
@@ -437,18 +458,22 @@
 +		/* we might have missed members without PVID before
 +		 * get them now from vlan4k and add to vlanmc */
 +		if (vlan->vid <= RTL8365MB_MAX_4K_VID) {
-+			ret = rtl8365mb_table_access(priv,
-+						     RTL8365MB_TABLE_CVLAN,
-+						     RTL8365MB_TABLE_READ,
-+						     vlan->vid, vlan_entry);
-+			if (ret) {
-+				if (extack)
-+					NL_SET_ERR_MSG_MOD(extack,
-+						"Failed to read VLAN 4k table");
-+				return ret;
++			if (undo) {
++				memcpy(vlan4k_entry, undo->vlan4k, sizeof(vlan4k_entry));
++			} else {
++				ret = rtl8365mb_table_access(priv,
++							     RTL8365MB_TABLE_CVLAN,
++							     RTL8365MB_TABLE_READ,
++							     vlan->vid, vlan4k_entry);
++				if (ret) {
++					if (extack)
++						NL_SET_ERR_MSG_MOD(extack,
++							"Failed to read VLAN 4k table");
++					return ret;
++				}
 +			}
 +
-+			rtl8365mb_buf_vlan4k(vlan_entry, &vlan4k);
++			rtl8365mb_buf_vlan4k(vlan4k_entry, &vlan4k);
 +		}
 +
 +		vlanmc_idx = first_unused;
@@ -464,6 +489,12 @@
 +		return ret;
 +	}
 +
++	if (undo)
++		undo->pvid = pvid_vlanmc_idx;
++
++	pvid_vlanmc_idx = (pvid_vlanmc_idx & RTL8365MB_VLAN_PVID_CTRL_MASK(port)) >>
++			  RTL8365MB_VLAN_PVID_CTRL_OFFSET(port);
++
 +	ret = regmap_read(priv->map,
 +		RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_REG(port),
 +		&data);
@@ -473,6 +504,9 @@
 +				"Failed to read port accepted frames");
 +		return ret;
 +	}
++
++	if (undo)
++		undo->accept = data;
 +
 +	accepted_frame = (data & RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_MASK(port)) >>
 +			  RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_OFFSET(port);
@@ -508,6 +542,10 @@
 +		rtl8365mb_vlanmc_buf(&vlanmc, vlan_entry);
 +	}
 +
++	if (undo) {
++		undo->mc_index = vlanmc_idx;
++		undo->mc_written = true;
++	}
 +	ret = regmap_bulk_write(priv->map,
 +		       RTL8365MB_VLAN_MC_CONF_REG(vlanmc_idx),
 +		       &vlan_entry,
@@ -520,9 +558,8 @@
 +		return ret;
 +	}
 +
-+	/* Adjust accepted frame types only when adding a PVID vlan and untagged
-+	 * frames are ignored or when removing a vlan used as PVID */
-+	if (!include) {
++	/* Reject untagged frames when the current VLAN loses its PVID role. */
++	if (!include || !(vlan->flags & BRIDGE_VLAN_INFO_PVID)) {
 +		if ((accepted_frame == RTL8365MB_FRAME_TYPE_ANY_FRAME) &&
 +				(pvid_vlanmc_idx == vlanmc_idx))
 +			accepted_frame = RTL8365MB_FRAME_TYPE_TAGGED_ONLY;
@@ -537,6 +574,8 @@
 +			dev_dbg(priv->dev, "Set port %d PVID to %d (@ %d idx)\n",
 +				port, vlan->vid, vlanmc_idx);
 +
++			if (undo)
++				undo->pvid_written = true;
 +			ret = regmap_update_bits(priv->map,
 +				 RTL8365MB_VLAN_PVID_CTRL_REG(port),
 +				 RTL8365MB_VLAN_PVID_CTRL_MASK(port),
@@ -556,6 +595,8 @@
 +	/* Even if ACCEPT_FRAME_TYPE_ANY, the switch will still check if the port
 +	 * is a member of vlan PVID
 +	 */
++	if (undo)
++		undo->accept_written = true;
 +	ret = regmap_update_bits(priv->map,
 +		RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_REG(port),
 +		RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_MASK(port),
@@ -578,28 +619,70 @@
 +	bool untagged = !!(vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED);
 +	bool pvid = !!(vlan->flags & BRIDGE_VLAN_INFO_PVID);
 +	struct realtek_priv *priv = ds->priv;
-+	int ret;
++	struct rtl8365mb_vlan_undo undo = {0};
++	bool vlan4k_written = false;
++	int ret, err;
 +
 +	dev_dbg(priv->dev, "add VLAN %d on port %d, %s, %s\n",
 +		vlan->vid, port, untagged ? "untagged" : "tagged",
 +		pvid ? "PVID" : "no PVID");
 +
-+	/* Vlan mc knowns nothing about untagged but it is required for pvid */
-+	ret = rtl8365mb_vlanmc_set(ds, port, vlan, extack, 1);
-+	if (ret)
-+		return ret;
++	if (vlan->vid > RTL8365MB_MAX_4K_VID) {
++		NL_SET_ERR_MSG_FMT_MOD(extack, "VLAN ID greater than %d",
++				      RTL8365MB_MAX_4K_VID);
++		return -EINVAL;
++	}
 +
-+	/* vlan4k knowns nothing about PVID */
-+	ret = rtl8365mb_vlan4k_set(ds, port, vlan, extack, 1);
++	ret = rtl8365mb_table_access(priv, RTL8365MB_TABLE_CVLAN,
++				     RTL8365MB_TABLE_READ, vlan->vid, undo.vlan4k);
 +	if (ret) {
-+		rtl8365mb_vlanmc_set(ds, port, vlan, extack, 0);
++		NL_SET_ERR_MSG_MOD(extack, "Failed to read VLAN 4k table");
 +		return ret;
 +	}
 +
-+	// TODO: fid?
-+	//ret_t rtl8367c_getAsicPortBasedFid(rtk_uint32 port, rtk_uint32* pFid)
++	ret = rtl8365mb_vlanmc_set(ds, port, vlan, extack, true, &undo);
++	if (ret)
++		goto rollback;
 +
-+	return 0;
++	vlan4k_written = true;
++	ret = rtl8365mb_vlan4k_set(ds, port, vlan, extack, true, undo.vlan4k);
++	if (!ret)
++		return 0;
++
++rollback:
++	/* A failed bus write may have reached the switch: restore attempted fields. */
++	if (vlan4k_written) {
++		err = rtl8365mb_table_access(priv, RTL8365MB_TABLE_CVLAN,
++					     RTL8365MB_TABLE_WRITE, vlan->vid, undo.vlan4k);
++		if (err)
++			dev_err(priv->dev, "failed to restore VLAN %d 4K entry: %d\n",
++				vlan->vid, err);
++	}
++	if (undo.accept_written) {
++		err = regmap_update_bits(priv->map,
++			RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_REG(port),
++			RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_MASK(port), undo.accept);
++		if (err)
++			dev_err(priv->dev, "failed to restore port %d accepted frames: %d\n",
++				port, err);
++	}
++	if (undo.pvid_written) {
++		err = regmap_update_bits(priv->map,
++			RTL8365MB_VLAN_PVID_CTRL_REG(port),
++			RTL8365MB_VLAN_PVID_CTRL_MASK(port), undo.pvid);
++		if (err)
++			dev_err(priv->dev, "failed to restore port %d PVID: %d\n", port, err);
++	}
++	if (undo.mc_written) {
++		err = regmap_bulk_write(priv->map,
++			RTL8365MB_VLAN_MC_CONF_REG(undo.mc_index), undo.vlanmc,
++			RTL8365MB_VLAN_MC_CONF_ENTRY_SIZE);
++		if (err)
++			dev_err(priv->dev, "failed to restore VLAN %d MC entry: %d\n",
++				vlan->vid, err);
++	}
++
++	return ret;
 +}
 +
 +static int rtl8365mb_vlan_del(struct dsa_switch *ds, int port,
@@ -610,17 +693,17 @@
 +
 +	dev_dbg(priv->dev, "del VLAN %d on port %d\n", vlan->vid, port);
 +
-+	ret = rtl8365mb_vlan4k_set(ds, port, vlan, NULL, 0);
++	ret = rtl8365mb_vlan4k_set(ds, port, vlan, NULL, false, NULL);
 +	/* clean vlan mc if present */
-+	ret2 = rtl8365mb_vlanmc_set(ds, port, vlan, NULL, 0);
++	ret2 = rtl8365mb_vlanmc_set(ds, port, vlan, NULL, false, NULL);
 +
-+	return ret || ret2;
++	return ret ? ret : ret2;
 +}
 +
  static const struct rtl8365mb_extint *
  rtl8365mb_get_port_extint(struct realtek_priv *priv, int port)
  {
-@@ -1165,6 +1757,76 @@ static int rtl8365mb_port_max_mtu(struct
+@@ -1165,6 +1840,122 @@ static int rtl8365mb_port_max_mtu(struct
  	return RTL8365MB_CFG0_MAX_LEN_MAX - VLAN_ETH_HLEN - ETH_FCS_LEN;
  }
  
@@ -631,33 +714,57 @@
 +			   struct netlink_ext_ack *extack)
 +{
 +	struct realtek_priv *priv = ds->priv;
-+	unsigned int port_bitmap = 0;
++	u32 isolation[RTL8365MB_MAX_NUM_PORTS];
++	unsigned int port_bitmap = 0, attempted = 0;
 +	struct dsa_port *dp;
-+	int ret;
++	int ret, err;
 +
++	/* Snapshot every affected field before changing forwarding relations. */
 +	dsa_switch_for_each_available_port(dp, ds) {
-+		/* Current port handled last */
-+		if (port == dp->index)
++		if (port == dp->index || !dsa_port_offloads_bridge(dp, &bridge))
 +			continue;
 +
-+		/* Not on this bridge */
-+		if (!dsa_port_offloads_bridge(dp, &bridge))
-+			continue;
-+
-+		/* Join this port to each other port on the bridge */
-+		ret = regmap_update_bits(priv->map,
-+					 RTL8365MB_PORT_ISOLATION_REG(dp->index),
-+					 BIT(port), BIT(port));
++		ret = regmap_read(priv->map, RTL8365MB_PORT_ISOLATION_REG(dp->index),
++				  &isolation[dp->index]);
 +		if (ret)
-+			dev_err(priv->dev, "failed to join port %d\n", port);
-+
++			return ret;
 +		port_bitmap |= BIT(dp->index);
 +	}
++	ret = regmap_read(priv->map, RTL8365MB_PORT_ISOLATION_REG(port),
++			  &isolation[port]);
++	if (ret)
++		return ret;
 +
-+	/* Set the bits for the ports we can access */
-+	return regmap_update_bits(priv->map,
-+				  RTL8365MB_PORT_ISOLATION_REG(port),
-+				  port_bitmap, port_bitmap);
++	dsa_switch_for_each_available_port(dp, ds) {
++		if (!(port_bitmap & BIT(dp->index)))
++			continue;
++
++		attempted |= BIT(dp->index);
++		ret = regmap_update_bits(priv->map,
++			RTL8365MB_PORT_ISOLATION_REG(dp->index), BIT(port), BIT(port));
++		if (ret)
++			goto rollback;
++	}
++
++	attempted |= BIT(port);
++	ret = regmap_update_bits(priv->map, RTL8365MB_PORT_ISOLATION_REG(port),
++				 port_bitmap, port_bitmap);
++	if (!ret)
++		return 0;
++
++rollback:
++	dsa_switch_for_each_available_port(dp, ds) {
++		if (!(attempted & BIT(dp->index)))
++			continue;
++
++		err = regmap_update_bits(priv->map,
++			RTL8365MB_PORT_ISOLATION_REG(dp->index),
++			dp->index == port ? port_bitmap : BIT(port), isolation[dp->index]);
++		if (err)
++			dev_err(priv->dev, "failed to restore port %d isolation: %d\n",
++				dp->index, err);
++	}
++	return ret;
 +}
 +
 +static void
@@ -682,22 +789,44 @@
 +		ret = regmap_update_bits(priv->map,
 +					 RTL8365MB_PORT_ISOLATION_REG(dp->index),
 +					 BIT(port), 0);
-+		if (ret)
++		if (ret) {
 +			dev_err(priv->dev, "failed to leave port %d\n", port);
++			return;
++		}
 +
 +		port_bitmap |= BIT(dp->index);
 +	}
 +
 +	/* Clear the bits for the ports we can not access, leave ourselves */
-+	regmap_update_bits(priv->map,
++	ret = regmap_update_bits(priv->map,
 +			   RTL8365MB_PORT_ISOLATION_REG(port),
 +			   port_bitmap, 0);
++	if (ret) {
++		dev_err(priv->dev, "failed to isolate port %d\n", port);
++		return;
++	}
++
++	/* Restore the reserved standalone PVID before accepting untagged frames. */
++	ret = regmap_update_bits(priv->map, RTL8365MB_VLAN_PVID_CTRL_REG(port),
++				 RTL8365MB_VLAN_PVID_CTRL_MASK(port), 0);
++	if (ret) {
++		dev_err(priv->dev, "failed to restore port %d PVID\n", port);
++		return;
++	}
++
++	ret = regmap_update_bits(priv->map,
++				 RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_REG(port),
++				 RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_MASK(port),
++				 RTL8365MB_FRAME_TYPE_ANY_FRAME <<
++				 RTL8365MB_VLAN_ACCEPT_FRAME_TYPE_OFFSET(port));
++	if (ret)
++		dev_err(priv->dev, "failed to restore port %d accepted frames\n", port);
 +}
 +
  static void rtl8365mb_port_stp_state_set(struct dsa_switch *ds, int port,
  					 u8 state)
  {
-@@ -1208,6 +1870,30 @@ static int rtl8365mb_port_set_learning(s
+@@ -1208,6 +1999,30 @@ static int rtl8365mb_port_set_learning(s
  			    enable ? RTL8365MB_LEARN_LIMIT_MAX : 0);
  }
  
@@ -728,7 +857,7 @@
  static int rtl8365mb_port_set_isolation(struct realtek_priv *priv, int port,
  					u32 mask)
  {
-@@ -1939,12 +2625,75 @@ static int rtl8365mb_reset_chip(struct r
+@@ -1939,12 +2754,75 @@ static int rtl8365mb_reset_chip(struct r
  					20000, 1e6);
  }
  
@@ -768,7 +897,7 @@
 +
 +	dsa_switch_for_each_cpu_port(cpu_dp, ds) {
 +		ret = rtl8365mb_vlan4k_set(ds, cpu_dp->index, &vlan, NULL,
-+					   true);
++					   true, NULL);
 +		if (ret) {
 +			dev_err(priv->dev,
 +				"Failed to init VLAN 0 (for non members)\n");
@@ -804,7 +933,7 @@
  	int ret;
  	int i;
  
-@@ -1971,10 +2720,16 @@ static int rtl8365mb_setup(struct dsa_sw
+@@ -1971,10 +2849,16 @@ static int rtl8365mb_setup(struct dsa_sw
  	else if (ret)
  		dev_info(priv->dev, "no interrupt support\n");
  
@@ -821,10 +950,13 @@
  		if (cpu->trap_port == RTL8365MB_MAX_NUM_PORTS)
  			cpu->trap_port = cpu_dp->index;
  	}
-@@ -2015,6 +2770,13 @@ static int rtl8365mb_setup(struct dsa_sw
+@@ -2015,6 +2899,16 @@ static int rtl8365mb_setup(struct dsa_sw
  	if (ret)
  		goto out_teardown_irq;
  
++	/* Table access mutex */
++	mutex_init(&mb->table_lock);
++
 +	ret = rtl8365mb_vlan_init(ds);
 +	if (ret)
 +		goto out_teardown_irq;
@@ -835,17 +967,7 @@
  	ret = rtl83xx_setup_user_mdio(ds);
  	if (ret) {
  		dev_err(priv->dev, "could not set up MDIO bus\n");
-@@ -2024,6 +2786,9 @@ static int rtl8365mb_setup(struct dsa_sw
- 	/* Start statistics counter polling */
- 	rtl8365mb_stats_setup(priv);
- 
-+	/* Table access mutex */
-+	mutex_init(&mb->table_lock);
-+
- 	return 0;
- 
- out_teardown_irq:
-@@ -2134,6 +2899,13 @@ static const struct dsa_switch_ops rtl83
+@@ -2134,6 +3028,13 @@ static const struct dsa_switch_ops rtl83
  	.get_stats64 = rtl8365mb_get_stats64,
  	.port_change_mtu = rtl8365mb_port_change_mtu,
  	.port_max_mtu = rtl8365mb_port_max_mtu,
