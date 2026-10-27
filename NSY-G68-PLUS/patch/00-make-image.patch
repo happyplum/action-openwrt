@@ -1,8 +1,6 @@
-diff --git a/target/linux/rockchip/image/Makefile b/target/linux/rockchip/image/Makefile
-index d46d192900..ec5dea8be0 100644
 --- a/target/linux/rockchip/image/Makefile
 +++ b/target/linux/rockchip/image/Makefile
-@@ -16,6 +16,7 @@ define Build/boot-common
+@@ -16,6 +16,7 @@
  	rm -fR $@.boot
  	mkdir -p $@.boot
  
@@ -10,7 +8,7 @@ index d46d192900..ec5dea8be0 100644
  	$(CP) $(IMAGE_KERNEL) $@.boot/kernel.img
  endef
  
-@@ -46,7 +47,7 @@ endef
+@@ -66,7 +67,7 @@
  ### Devices ###
  define Device/Default
    PROFILES := Default
@@ -18,14 +16,12 @@ index d46d192900..ec5dea8be0 100644
 +  KERNEL = kernel-bin
    KERNEL_LOADADDR :=
    BOOT_SCRIPT :=
-   IMAGES := sysupgrade.img.gz
-diff --git a/target/linux/rockchip/image/default.bootscript b/target/linux/rockchip/image/default.bootscript
-index 98dd32356b..f0ecd84cfa 100644
+   BOOT_FLOW :=
 --- a/target/linux/rockchip/image/default.bootscript
 +++ b/target/linux/rockchip/image/default.bootscript
-@@ -16,6 +16,7 @@ fi;
+@@ -18,6 +18,7 @@
  
- setenv bootargs "console=${serial_port},1500000 earlycon=uart8250,mmio32${serial_addr} root=PARTUUID=${uuid} rw rootwait";
+ setenv bootargs "coherent_pool=2M console=tty1 console=${serial_port},1500000 earlycon=uart8250,mmio32${serial_addr} root=PARTUUID=${uuid} rw rootwait";
  
 +load ${devtype} ${devnum}:1 ${fdt_addr_r} rockchip.dtb
  load ${devtype} ${devnum}:1 ${kernel_addr_r} kernel.img

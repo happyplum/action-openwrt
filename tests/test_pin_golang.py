@@ -135,7 +135,13 @@ esac
                 calls = [line for line in text.splitlines() if "/../pin-golang.sh" in line]
                 self.assertEqual(len(calls), 1)
                 call = calls[0]
-                self.assertLess(text.rindex("./scripts/feeds update -a"), text.index(call))
+                if device == "NSY-G68-PLUS":
+                    self.assertNotIn("./scripts/feeds update", text)
+                    workflow = (ROOT / ".github/workflows/build-openwrt-NSY-G68-PLUS.yml").read_text()
+                    self.assertLess(workflow.index("- name: Update feeds"),
+                                    workflow.index("- name: Load custom configuration"))
+                else:
+                    self.assertLess(text.rindex("./scripts/feeds update -a"), text.index(call))
                 self.assertLess(text.index(call), text.rindex("./scripts/feeds install -a"))
                 self.write(f"{device}/entry.sh", '#!/bin/bash\nSCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"\n'
                            + call + '\necho continued > continued\n')

@@ -34,6 +34,7 @@ class NsySwitchModeTests(unittest.TestCase):
         (self.assets / "patch").mkdir()
         (self.build / "target/linux/rockchip/image").mkdir(parents=True)
         (self.build / "target/linux/rockchip/image/armv8.mk").write_text("")
+        (self.build / "target/linux/rockchip/Makefile").write_text("KERNEL_PATCHVER:=6.12\n")
         (self.build / ".config").write_text("stale build configuration\n")
         text = (BOARD / "diy-part2.sh").read_text(encoding="utf-8")
         setup = text.split("# 修正自动编译 openwrt 时 rust")[0]
@@ -111,6 +112,40 @@ esac
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.build / "mode-done").exists())
         self.assertEqual((self.source / ".config").read_bytes(), self.original_config)
+
+    def test_mismatched_kernel_stops_before_board_overlay(self):
+        self.use_local_assets()
+        (self.build / "target/linux/rockchip/Makefile").write_text("KERNEL_PATCHVER:=6.18\n")
+        result = self.run_setup("dsa")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("6.12", result.stderr)
+        self.assertFalse((self.build / DTS_DIR / "rk3568-nsy-g68-plus.dts").exists())
+
+    def test_image_patch_failure_stops_build(self):
+        text = (BOARD / "diy-part2.sh").read_text(encoding="utf-8")
+        patching = text[text.index("# 应用 patch 目录"):text.index('echo "编译 执行完成"')]
+        (self.build / "patch").mkdir()
+        (self.build / "patch/required.patch").write_text("required patch\n")
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        git = bin_dir / "git"
+        git.write_text('''#!/bin/bash
+case "$2" in
+    --stat) exit 0 ;;
+    --check) [[ "$PATCH_FAILURE" != check ]] ;;
+    *) [[ "$PATCH_FAILURE" != apply ]] ;;
+esac
+''')
+        git.chmod(0o755)
+        for failure in ("check", "apply"):
+            with self.subTest(failure=failure):
+                result = subprocess.run(
+                    ["bash", "-c", patching + '\nprintf continued > patch-done\n'],
+                    cwd=self.build, env=dict(self.env, PATCH_FAILURE=failure,
+                                            PATH=str(bin_dir) + os.pathsep + self.env["PATH"]),
+                    text=True, capture_output=True, timeout=15)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((self.build / "patch-done").exists())
 
 
 if __name__ == "__main__":

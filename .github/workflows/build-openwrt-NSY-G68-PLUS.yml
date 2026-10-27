@@ -30,9 +30,9 @@ permissions:
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt.git
-  REPO_BRANCH: master
+  REPO_BRANCH: openwrt-25.12
+  REPO_COMMIT: 84b665b5de552e297d0f7d755b88a46fc0cfeb13
   CONFIG_FILE: NSY-G68-PLUS/.config
-  DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: NSY-G68-PLUS/diy-part2.sh
   DEFAULT_IP: 192.168.7.1
   UPLOAD_RELEASE: true
@@ -106,7 +106,10 @@ jobs:
         if: ${{ steps.init.outputs.status == 'success' && !cancelled() }}
         run: |
           REPO_NAME=$(basename "${REPO_URL}" .git)
-          git clone -q --single-branch --depth=1 --branch=${{ env.REPO_BRANCH }} ${REPO_URL} openwrt
+          git init -q openwrt
+          git -C openwrt remote add origin "${REPO_URL}"
+          git -C openwrt fetch -q --depth=1 origin "${REPO_COMMIT}"
+          git -C openwrt checkout -q --detach FETCH_HEAD
           ln -sf /builder/openwrt ${{ github.workspace }}/openwrt
           echo "OPENWRT_PATH=/builder/openwrt" >> ${GITHUB_ENV}
           echo "REPO_NAME=${REPO_NAME}" >> ${GITHUB_ENV}
@@ -131,14 +134,12 @@ jobs:
         uses: HiGarfield/cachewrtbuild@main
         with:
           ccache: false
-          mixkey: ${{ env.SOURCE_REPO }}-${{ env.REPO_BRANCH }}-${{ env.DEVICE_TARGET }}-${{ env.DEVICE_SUBTARGET }}
+          mixkey: ${{ env.SOURCE_REPO }}-${{ env.REPO_COMMIT }}-${{ env.DEVICE_TARGET }}-${{ env.DEVICE_SUBTARGET }}
           prefix: ${{ env.OPENWRT_PATH }}
 
       - name: Load custom feeds
         run: |
-          chmod +x ${DIY_P1_SH}
-          cd openwrt/
-          ${{ github.workspace }}/${DIY_P1_SH}
+          cp NSY-G68-PLUS/feeds.conf.default openwrt/feeds.conf.default
 
       - name: Update feeds
         run: cd openwrt && ./scripts/feeds update -a

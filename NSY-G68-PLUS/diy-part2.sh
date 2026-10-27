@@ -15,6 +15,12 @@ echo "========================================="
 echo "交换机驱动模式: ${SWMODE}"
 echo "========================================="
 
+kernel_patchver=$(sed -n 's/^KERNEL_PATCHVER:=//p' target/linux/rockchip/Makefile)
+if [[ "${kernel_patchver}" != "6.12" ]]; then
+    echo "NSY-G68-PLUS requires Linux 6.12; found ${kernel_patchver:-unknown}" >&2
+    exit 1
+fi
+
 # 从 GitHub 稀疏克隆多个目录
 clone_from_github() {
     local tmp_dir=$(mktemp -d)
@@ -175,9 +181,9 @@ if [[ -d "patch" ]]; then
     for patch_file in patch/*.patch; do
         [[ -f "$patch_file" ]] || continue
         echo "处理: $patch_file"
-        git apply --stat "$patch_file" 2>/dev/null
-        git apply --check "$patch_file" 2>/dev/null || { echo "检查失败: $patch_file"; continue; }
-        git apply "$patch_file" && echo "应用成功: $patch_file" || echo "应用失败: $patch_file"
+        git apply --check "$patch_file" || exit $?
+        git apply "$patch_file" || exit $?
+        echo "应用成功: $patch_file"
     done
 fi
 
@@ -185,10 +191,6 @@ echo "编译 执行完成"
 
 echo "开始 DIY2 配置……"
 echo "========================="
-# ------------------------------- Custom Package -------------------------------
-./scripts/feeds update -a
-# ------------------------------- Custom Package -------------------------------
-
 # ------------------------------- Main source started -------------------------------
 # Set default IP address
 default_ip="192.168.1.1"

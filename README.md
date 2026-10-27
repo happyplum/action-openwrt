@@ -14,9 +14,18 @@ DIY2 按模式将 DTS、`02_network` 和 `.config` 模板写入 OpenWrt 构建�
 网口为 `lan1` 至 `lan4` 和 `wan`，旧交换机节点在 DSA DTS 中禁用。
 选定模式后，构建目录只保留生效的 `02_network`，避免 `board_detect` 依次执行两份模式模板而覆盖网络配置。
 
-板级内核补丁当前位于 `NSY-G68-PLUS/userpatches/target/linux/rockchip/patches-6.12`，
-工作流跟随的源码分支为 `master`，完整构建前需核对实际内核与补丁版本是否匹配。
-本地模式回归验证文件选择及驱动包接线，不替代完整固件构建和实机网口测试。
+源码固定为 ImmortalWrt `openwrt-25.12` 的
+`84b665b5de552e297d0f7d755b88a46fc0cfeb13`，对应 Linux 6.12.112；
+源码提交只在该设备工作流的 `REPO_COMMIT` 维护，缓存按提交隔离。
+软件源提交由 `NSY-G68-PLUS/feeds.conf.default` 维护，DIY2 不再次更新 feeds。
+DIY2 在覆盖板级文件前校验真实内核系列为 6.12，镜像补丁检查或应用失败时停止。
+
+SGMII、XPCS、CombPHY 等已由该源码基线提供的补丁直接复用上游版本；
+板级新增补丁保留在 `NSY-G68-PLUS/userpatches/target/linux/rockchip/patches-6.12`。
+
+本地回归覆盖模式文件选择、版本与补丁失败处理；
+测试命令同下文。固件网口仍需在真实设备核对链路、LAN DHCP、WAN 和 VLAN，
+自动化回归不能代替刷机后的硬件验证。
 
 ## Go 构建版本
 
