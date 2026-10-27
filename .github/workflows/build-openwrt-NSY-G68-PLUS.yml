@@ -198,9 +198,9 @@ jobs:
         id: tag
         if: ${{ env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success' && !cancelled() }}
         run: |
-          echo "release_tag=${{ env.BOARD }}-$(date +"%Y.%m")" >> ${{ github.output }}
-          echo "release_name=${{ env.BOARD }} $(date +"%Y.%m")" >> ${{ github.output }}
-          echo "status=success" >> ${{ github.output }}
+          echo "release_tag=${{ env.BOARD }}-$(date +"%Y.%m")" >> "$GITHUB_OUTPUT"
+          echo "release_name=${{ env.BOARD }} $(date +"%Y.%m")" >> "$GITHUB_OUTPUT"
+          echo "status=success" >> "$GITHUB_OUTPUT"
 
       - name: Upload OpenWrt to Release
         uses: ncipollo/release-action@v1.20.0
