@@ -22,6 +22,7 @@ DIY2 在覆盖板级文件前校验真实内核系列为 6.12，镜像补丁检�
 
 SGMII、XPCS、CombPHY 等已由该源码基线提供的补丁直接复用上游版本；
 板级新增补丁保留在 `NSY-G68-PLUS/userpatches/target/linux/rockchip/patches-6.12`。
+SmartDNS WebUI 构建补丁为 `TARGET_CC` 添加引用，确保包含 `ccache` 的编译器参数完整传给 `make`。
 RTL8367S 的补充驱动使用外部接口 ID 配置寄存器，并修正 SDS 间接读取，
 按同驱动已有约定锁住完整事务、有限等待 busy 清除和传播 I/O 错误。
 寄存器访问依据见 [原始驱动评审](https://lists.openwall.net/netdev/2022/05/10/384)。
