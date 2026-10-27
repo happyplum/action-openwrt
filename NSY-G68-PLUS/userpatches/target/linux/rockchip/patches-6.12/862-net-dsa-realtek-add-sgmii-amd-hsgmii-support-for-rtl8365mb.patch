@@ -18,8 +18,8 @@ This was tested on RTL8367S (ver=0x00a0, opt=0x0001).
 Signed-off-by: Hauke Mehrtens <hauke@hauke-m.de>
 Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
 ---
- drivers/net/dsa/realtek/rtl8365mb.c | 500 +++++++++++++++++++++++++++-
- 1 file changed, 495 insertions(+), 5 deletions(-)
+ drivers/net/dsa/realtek/rtl8365mb.c | 549 +++++++++++++++++++++++++++-
+ 1 file changed, 544 insertions(+), 5 deletions(-)
 
 --- a/drivers/net/dsa/realtek/rtl8365mb.c
 +++ b/drivers/net/dsa/realtek/rtl8365mb.c
@@ -278,24 +278,47 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  enum rtl8365mb_phy_interface_mode {
  	RTL8365MB_PHY_INTERFACE_MODE_INVAL = 0,
  	RTL8365MB_PHY_INTERFACE_MODE_INTERNAL = BIT(0),
-@@ -1457,6 +1672,243 @@ rtl8365mb_get_tag_protocol(struct dsa_sw
+@@ -1457,6 +1672,282 @@ rtl8365mb_get_tag_protocol(struct dsa_sw
  	return DSA_TAG_PROTO_RTL8_4;
  }
  
++static int rtl8365mb_sds_poll_busy(struct realtek_priv *priv)
++{
++	u32 val;
++
++	return regmap_read_poll_timeout(priv->map_nolock,
++				       RTL8365MB_SDS_INDACS_CMD,
++				       val, !(val & 0x0100), 10, 100);
++}
++
 +static int rtl8365mb_sds_indacs_write(struct realtek_priv *priv, unsigned int addr,
 +				      unsigned int data)
 +{
 +	int ret;
 +
-+	ret = regmap_write(priv->map, RTL8365MB_SDS_INDACS_DATA, data);
-+	if (ret)
-+		return ret;
++	rtl83xx_lock(priv);
 +
-+	ret = regmap_write(priv->map, RTL8365MB_SDS_INDACS_ADR, addr);
++	ret = rtl8365mb_sds_poll_busy(priv);
 +	if (ret)
-+		return ret;
++		goto out;
 +
-+	return regmap_write(priv->map, RTL8365MB_SDS_INDACS_CMD, 0x00C0);
++	ret = regmap_write(priv->map_nolock, RTL8365MB_SDS_INDACS_DATA, data);
++	if (ret)
++		goto out;
++
++	ret = regmap_write(priv->map_nolock, RTL8365MB_SDS_INDACS_ADR, addr);
++	if (ret)
++		goto out;
++
++	ret = regmap_write(priv->map_nolock, RTL8365MB_SDS_INDACS_CMD, 0x00C0);
++	if (ret)
++		goto out;
++
++	ret = rtl8365mb_sds_poll_busy(priv);
++out:
++	rtl83xx_unlock(priv);
++
++	return ret;
 +}
 +
 +static int rtl8365mb_sds_indacs_read(struct realtek_priv *priv, unsigned int addr,
@@ -303,15 +326,29 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
 +{
 +	int ret;
 +
-+	ret = regmap_write(priv->map, RTL8365MB_SDS_INDACS_ADR, addr);
-+	if (ret)
-+		return ret;
++	rtl83xx_lock(priv);
 +
-+	ret = regmap_write(priv->map, RTL8365MB_SDS_INDACS_CMD, 0x00C0);
++	ret = rtl8365mb_sds_poll_busy(priv);
 +	if (ret)
-+		return ret;
++		goto out;
 +
-+	return regmap_write(priv->map, RTL8365MB_SDS_INDACS_DATA, *data);
++	ret = regmap_write(priv->map_nolock, RTL8365MB_SDS_INDACS_ADR, addr);
++	if (ret)
++		goto out;
++
++	ret = regmap_write(priv->map_nolock, RTL8365MB_SDS_INDACS_CMD, 0x0080);
++	if (ret)
++		goto out;
++
++	ret = rtl8365mb_sds_poll_busy(priv);
++	if (ret)
++		goto out;
++
++	ret = regmap_read(priv->map_nolock, RTL8365MB_SDS_INDACS_DATA, data);
++out:
++	rtl83xx_unlock(priv);
++
++	return ret;
 +}
 +
 +static int rtl8365mb_ext_init_sgmii_fw(struct realtek_priv *priv)
@@ -395,7 +432,6 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
 +	const struct rtl8365mb_sds_init *sds_init;
 +	const struct rtl8365mb_extint *extint;
 +	size_t sds_init_len;
-+	int ext_int;
 +	int ret;
 +	int i;
 +	int val;
@@ -465,10 +501,10 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
 +	if (ret)
 +		return ret;
 +
-+	mask = RTL8365MB_DIGITAL_INTERFACE_SELECT_MODE_MASK(ext_int);
-+	val = interface_mode << RTL8365MB_DIGITAL_INTERFACE_SELECT_MODE_OFFSET(ext_int);
++	mask = RTL8365MB_DIGITAL_INTERFACE_SELECT_MODE_MASK(extint->id);
++	val = interface_mode << RTL8365MB_DIGITAL_INTERFACE_SELECT_MODE_OFFSET(extint->id);
 +	ret = regmap_update_bits(priv->map,
-+				 RTL8365MB_DIGITAL_INTERFACE_SELECT_REG(ext_int),
++				 RTL8365MB_DIGITAL_INTERFACE_SELECT_REG(extint->id),
 +				 mask,
 +				 val);
 +	if (ret)
@@ -493,6 +529,9 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
 +	int ret;
 +
 +	ret = regmap_read(priv->map, RTL8365MB_MISC_CFG0, &running);
++	if (ret)
++		return ret;
++
 +	if (running & RTL8365MB_MISC_CFG0_DW8051_EN) {
 +		ret = regmap_update_bits(priv->map, RTL8365MB_MISC_CFG0,
 +					 RTL8365MB_MISC_CFG0_DW8051_EN,
@@ -522,7 +561,7 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  static int rtl8365mb_ext_config_rgmii(struct realtek_priv *priv, int port,
  				      phy_interface_t interface)
  {
-@@ -1540,6 +1992,7 @@ static int rtl8365mb_ext_config_rgmii(st
+@@ -1540,6 +2031,7 @@ static int rtl8365mb_ext_config_rgmii(st
  }
  
  static int rtl8365mb_ext_config_forcemode(struct realtek_priv *priv, int port,
@@ -530,7 +569,7 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  					  bool link, int speed, int duplex,
  					  bool tx_pause, bool rx_pause)
  {
-@@ -1562,7 +2015,7 @@ static int rtl8365mb_ext_config_forcemod
+@@ -1562,7 +2054,7 @@ static int rtl8365mb_ext_config_forcemod
  		r_rx_pause = rx_pause ? 1 : 0;
  		r_tx_pause = tx_pause ? 1 : 0;
  
@@ -539,7 +578,7 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  			r_speed = RTL8365MB_PORT_SPEED_1000M;
  		} else if (speed == SPEED_100) {
  			r_speed = RTL8365MB_PORT_SPEED_100M;
-@@ -1592,6 +2045,25 @@ static int rtl8365mb_ext_config_forcemod
+@@ -1592,6 +2084,25 @@ static int rtl8365mb_ext_config_forcemod
  		r_duplex = 0;
  	}
  
@@ -565,7 +604,7 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  	val = FIELD_PREP(RTL8365MB_DIGITAL_INTERFACE_FORCE_EN_MASK, 1) |
  	      FIELD_PREP(RTL8365MB_DIGITAL_INTERFACE_FORCE_TXPAUSE_MASK,
  			 r_tx_pause) |
-@@ -1638,6 +2110,14 @@ static void rtl8365mb_phylink_get_caps(s
+@@ -1638,6 +2149,14 @@ static void rtl8365mb_phylink_get_caps(s
  
  	if (extint->supported_interfaces & RTL8365MB_PHY_INTERFACE_MODE_RGMII)
  		phy_interface_set_rgmii(config->supported_interfaces);
@@ -580,18 +619,28 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  }
  
  static void rtl8365mb_phylink_mac_config(struct phylink_config *config,
-@@ -1663,6 +2143,10 @@ static void rtl8365mb_phylink_mac_config
+@@ -1663,6 +2182,20 @@ static void rtl8365mb_phylink_mac_config
  				"failed to configure RGMII mode on port %d: %d\n",
  				port, ret);
  		return;
 +	} else if (state->interface == PHY_INTERFACE_MODE_SGMII ||
 +		   state->interface == PHY_INTERFACE_MODE_2500BASEX) {
-+		rtl8365mb_ext_init_sgmii(priv, port, state->interface);
-+		rtl8365mb_ext_sgmii_nway(priv, false);
++		ret = rtl8365mb_ext_init_sgmii(priv, port, state->interface);
++		if (ret) {
++			dev_err(priv->dev,
++				"failed to configure SGMII mode on port %d: %d\n",
++				port, ret);
++			return;
++		}
++		ret = rtl8365mb_ext_sgmii_nway(priv, false);
++		if (ret)
++			dev_err(priv->dev,
++				"failed to configure SGMII autonegotiation on port %d: %d\n",
++				port, ret);
  	}
  
  	/* TODO: Implement MII and RMII modes, which the RTL8365MB-VC also
-@@ -1685,8 +2169,11 @@ static void rtl8365mb_phylink_mac_link_d
+@@ -1685,8 +2218,11 @@ static void rtl8365mb_phylink_mac_link_d
  	p = &mb->ports[port];
  	cancel_delayed_work_sync(&p->mib_work);
  
@@ -605,7 +654,7 @@ Signed-off-by: Schneider Azima <Schneider-Azima12@protonmail.com>
  						     false, false);
  		if (ret)
  			dev_err(priv->dev,
-@@ -1715,8 +2202,11 @@ static void rtl8365mb_phylink_mac_link_u
+@@ -1715,8 +2251,11 @@ static void rtl8365mb_phylink_mac_link_u
  	p = &mb->ports[port];
  	schedule_delayed_work(&p->mib_work, 0);
  
