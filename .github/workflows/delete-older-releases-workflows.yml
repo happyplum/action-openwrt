@@ -116,7 +116,6 @@ jobs:
           from datetime import datetime
 
           endpoint = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs"
-          retention_days = {"failure": 3, "success": 7}
           now = time.time()
 
           pages = json.loads(subprocess.check_output(
@@ -128,7 +127,7 @@ jobs:
               for run in page["workflow_runs"]
               if run["status"] == "completed"
               and datetime.fromisoformat(run["updated_at"]).timestamp()
-                  < now - retention_days.get(run["conclusion"], 30) * 86400
+                  < now - (7 if run["conclusion"] == "success" else 3) * 86400
           })
 
           failed = []

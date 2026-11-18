@@ -30,13 +30,16 @@ class CleanupWorkflowRunsTests(unittest.TestCase):
             {"workflow_runs": [
                 self.run_record(1, "failure", 4),
                 self.run_record(2, "failure", 3),
-                self.run_record(3, "success", 6),
+                self.run_record(3, "success", 7),
                 self.run_record(4, "success", 8),
             ]},
             {"workflow_runs": [
-                self.run_record(5, "cancelled", 29),
-                self.run_record(6, "cancelled", 31),
+                self.run_record(5, "cancelled", 3),
+                self.run_record(6, "cancelled", 4),
                 self.run_record(7, None, 40, status="in_progress"),
+                self.run_record(8, "timed_out", 4),
+                self.run_record(9, "skipped", 4),
+                self.run_record(10, None, 40, status="queued"),
             ]},
         ]
         with (
@@ -52,6 +55,7 @@ class CleanupWorkflowRunsTests(unittest.TestCase):
         )
         self.assertEqual([call.args[0][-1] for call in delete_run.call_args_list], [
             f"{RUNS_ENDPOINT}/1", f"{RUNS_ENDPOINT}/4", f"{RUNS_ENDPOINT}/6",
+            f"{RUNS_ENDPOINT}/8", f"{RUNS_ENDPOINT}/9",
         ])
         self.assertTrue(all("DELETE" in call.args[0] for call in delete_run.call_args_list))
 
