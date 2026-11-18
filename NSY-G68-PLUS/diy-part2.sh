@@ -82,17 +82,6 @@ switch_config "${SCRIPT_DIR}/.config.${SWMODE}" \
 # board_detect 会执行 board.d 下的所有文件，模式模板不能留在运行目录。
 rm -f -- "${BOARD_NETWORK_DIR}/02_network.dsa" "${BOARD_NETWORK_DIR}/02_network.switch" || exit $?
 
-# 修正自动编译 openwrt 时 rust 选项导致错误
-if [[ -f "feeds/packages/lang/rust/Makefile" ]]; then
-    if grep -q '\-\-ci' feeds/packages/lang/rust/Makefile; then
-        sed -i 's/--ci [a-z]*/--ci false/g' feeds/packages/lang/rust/Makefile
-        echo "Rust 编译修正完成（替换已有参数）"
-    else
-        sed -i '/^\s*\$(\PYTHON) \$(\HOST_BUILD_DIR)\/x\.py \\/a\\t\t--ci false \\' feeds/packages/lang/rust/Makefile
-        echo "Rust 编译修正完成（添加新参数）"
-    fi
-fi
-
 # U-Boot Makefile 添加 G68-Plus 机型定义
 if [[ -f "package/boot/uboot-rockchip/Makefile" ]]; then
     sed -i '/^# RK3568 boards$/a\
@@ -240,6 +229,7 @@ git clone --depth=1 -b v5 --single-branch https://github.com/sbwml/luci-app-mosd
 
 # ------------------------------- Other ends -------------------------------
 
+bash "${SCRIPT_DIR}/../upgrade-rust.sh" || exit $?
 bash "${SCRIPT_DIR}/../pin-golang.sh" || exit $?
 ./scripts/feeds install -a
 

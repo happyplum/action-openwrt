@@ -37,7 +37,7 @@ class NsySwitchModeTests(unittest.TestCase):
         (self.build / "target/linux/rockchip/Makefile").write_text("KERNEL_PATCHVER:=6.12\n")
         (self.build / ".config").write_text("stale build configuration\n")
         text = (BOARD / "diy-part2.sh").read_text(encoding="utf-8")
-        setup = text.split("# 修正自动编译 openwrt 时 rust")[0]
+        setup = text[:text.index("# U-Boot Makefile 添加 G68-Plus 机型定义")]
         device = text[text.index("# 添加 G68-Plus 设备定义"):text.index("# 应用 patch 目录")]
         (self.source / "diy-part2.sh").write_text(
             setup + device + '\nprintf done > mode-done\n', encoding="utf-8")
