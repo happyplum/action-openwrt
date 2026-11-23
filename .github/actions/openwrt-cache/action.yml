@@ -1,0 +1,64 @@
+name: OpenWrt build caches
+description: Configure the source tree and restore compiler and optional download caches.
+inputs:
+  cache-downloads:
+    description: Keep a monthly seed of source archives for download-heavy builds.
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Identify the build inputs
+      id: build
+      working-directory: /builder/openwrt
+      shell: bash
+      run: |
+        make defconfig
+        grep -qx 'CONFIG_CCACHE=y' .config
+        cache_dir=$(make -s --no-print-directory val.CCACHE_DIR)
+        if [[ "$cache_dir" != "$PWD/.ccache" ]]; then
+          echo "::error::OpenWrt writes to $cache_dir, but CI archives $PWD/.ccache"
+          exit 1
+        fi
+        mkdir -p .ccache
+        test ! -L .ccache
+
+        # Rebuilt compilers can have identical contents and different timestamps.
+        {
+          echo "CCACHE_DIR=$PWD/.ccache"
+          echo "CCACHE_COMPILERCHECK=content"
+          echo "CCACHE_MAXSIZE=2G"
+          echo "CCACHE_STATSLOG=$RUNNER_TEMP/openwrt-ccache.stats"
+        } >> "$GITHUB_ENV"
+
+        scope="${RUNNER_OS}-${RUNNER_ARCH}-${REPO_URL##*/}-${REPO_BRANCH}-${BOARD}-${SWMODE:-default}"
+        # Include the actual checkout, configured feeds, device files and effective config.
+        source_rev=$(git rev-parse HEAD)
+        feeds=$(./scripts/feeds list -s -f)
+        device_tree=$(git -C "$GITHUB_WORKSPACE" rev-parse "HEAD:${CONFIG_FILE%/*}")
+        fingerprint=$({
+          printf '%s\n' "$source_rev" "$feeds" "$device_tree"
+          sha256sum .config
+        } | sha256sum)
+        {
+          echo "scope=$scope"
+          echo "fingerprint=${fingerprint%% *}"
+          echo "month=$(date -u +%Y-%m)"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore compiler results
+      uses: actions/cache@v6.1.0
+      with:
+        path: /builder/openwrt/.ccache
+        key: ccache-v2-${{ steps.build.outputs.scope }}-${{ steps.build.outputs.fingerprint }}
+        restore-keys: |
+          ccache-v2-${{ steps.build.outputs.scope }}-
+
+    # A single seed per month avoids uploading a multi-GB archive for each feed update.
+    # make download still runs on every build to fetch new or changed sources.
+    - name: Restore source downloads
+      if: inputs.cache-downloads == 'true'
+      uses: actions/cache@v6.1.0
+      with:
+        path: /builder/openwrt/dl
+        key: dl-v1-${{ steps.build.outputs.scope }}-${{ steps.build.outputs.month }}

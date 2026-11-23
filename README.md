@@ -16,7 +16,8 @@ DIY2 按模式将 DTS、`02_network` 和 `.config` 模板写入 OpenWrt 构建�
 
 源码固定为 ImmortalWrt `openwrt-25.12` 的
 `84b665b5de552e297d0f7d755b88a46fc0cfeb13`，对应 Linux 6.12.112；
-源码提交只在该设备工作流的 `REPO_COMMIT` 维护，缓存按提交隔离。
+源码提交只在该设备工作流的 `REPO_COMMIT` 维护，工具链缓存按提交隔离。
+编译缓存按设备和交换机模式分别保存，上游源码或软件源变化时仍可复用兼容的编译结果。
 软件源提交由 `NSY-G68-PLUS/feeds.conf.default` 维护，DIY2 不再次更新 feeds。
 DIY2 在覆盖板级文件前校验真实内核系列为 6.12，镜像补丁检查或应用失败时停止。
 
