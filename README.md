@@ -49,6 +49,9 @@ ImmortalWrt packages 提交 `0ee3fbc2992c75b2668933467479343c5e4c75e9` 的完整
 定向测试：`python3 -B -m unittest discover -s tests -v`（在 Linux/WSL 中执行，需要 Bash）。
 Go 包固定会影响这些固件内的全部 Go 软件包，发布前需核对实际 host Go 版本、Xray 和完整固件构建结果。
 
+构建加速、Actions 缓存策略和 OpenWrt 运行时配置的已落实项与待定项见 [docs/构建加速与配置优化.md](docs/构建加速与配置优化.md)。
+`config/*.conf` 里的 sysctl 在 `main` 分支构建时直接取自本次 checkout（其他分支仍从远端 `main` 拉）。
+
 WSL
 由于 WSL 的 PATH 中包含带有空格的 Windows 路径，有可能会导致编译失败，请在 make 前面加上：
 
