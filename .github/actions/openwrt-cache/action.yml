@@ -32,27 +32,35 @@ runs:
         } >> "$GITHUB_ENV"
 
         scope="${RUNNER_OS}-${RUNNER_ARCH}-${REPO_URL##*/}-${REPO_BRANCH}-${BOARD}-${SWMODE:-default}"
-        # Include the actual checkout, configured feeds, device files and effective config.
-        source_rev=$(git rev-parse HEAD)
-        feeds=$(./scripts/feeds list -s -f)
-        device_tree=$(git -C "$GITHUB_WORKSPACE" rev-parse "HEAD:${CONFIG_FILE%/*}")
-        fingerprint=$({
-          printf '%s\n' "$source_rev" "$feeds" "$device_tree"
-          sha256sum .config
-        } | sha256sum)
         {
           echo "scope=$scope"
-          echo "fingerprint=${fingerprint%% *}"
+          # Archives are immutable: a key that follows every source or config change
+          # re-uploads on each build. Rotate weekly instead; ccache itself validates
+          # compiler content and per-object compile options before any hit.
+          echo "ccache_week=$(date -u +%G-W%V)"
           echo "month=$(date -u +%Y-%m)"
         } >> "$GITHUB_OUTPUT"
 
     - name: Restore compiler results
+      id: ccache
       uses: actions/cache@v6.1.0
       with:
         path: /builder/openwrt/.ccache
-        key: ccache-v2-${{ steps.build.outputs.scope }}-${{ steps.build.outputs.fingerprint }}
+        key: ccache-v3-${{ steps.build.outputs.scope }}-${{ steps.build.outputs.ccache_week }}
         restore-keys: |
+          ccache-v3-${{ steps.build.outputs.scope }}-
           ccache-v2-${{ steps.build.outputs.scope }}-
+
+    - name: Report compiler cache match
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.ccache.outputs.cache-hit }}
+      run: |
+        case "$CACHE_HIT" in
+          true)  echo 'ccache archive: exact hit' ;;
+          false) echo 'ccache archive: restored from an older key (see restore log)' ;;
+          *)     echo 'ccache archive: miss or unavailable' ;;
+        esac
 
     # A single seed per month avoids uploading a multi-GB archive for each feed update.
     # make download still runs on every build to fetch new or changed sources.

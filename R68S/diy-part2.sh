@@ -33,17 +33,25 @@ ip_regex="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01
     sed -i "/lan) ipad=\${ipaddr:-/s/\${ipaddr:-\"[^\"]*\"}/\${ipaddr:-\"${1}\"}/" package/base-files/*/bin/config_generate
 }
 
-# 优化
-rm -rf package/base-files/files/etc/sysctl.d/0-base.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-base.conf
-rm -rf package/base-files/files/etc/sysctl.d/0-v4.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-v4.conf
-rm -rf package/base-files/files/etc/sysctl.d/0-v6.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-v6.conf
-rm -rf package/base-files/files/etc/sysctl.d/1-netfilter.conf
-wget -P package/base-files/files/etc/sysctl.d https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/1-netfilter.conf
-rm -rf package/base-files/files/etc/balance_irq
-wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/R68S/interface/balance_irq
+# 优化：main 分支直接用本次 checkout 的 sysctl 文件，避免每次构建去 raw.githubusercontent.com 拉自己；
+# 其他仓库/分支保持旧逻辑（从远端 main 拉），以免本地文件与远端不一致时悄悄改变行为。
+sysctl_dir=package/base-files/files/etc/sysctl.d
+if [[ "${GITHUB_REPOSITORY:-}" == "happyplum/action-openwrt" && "${GITHUB_REF:-}" == "refs/heads/main" && -d "${GITHUB_WORKSPACE:-}/config" ]]; then
+    mkdir -p "${sysctl_dir}"
+    install -m 0644 "${GITHUB_WORKSPACE}/config/"{0-base,0-v4,0-v6,1-netfilter}.conf "${sysctl_dir}/"
+    install -m 0644 "${GITHUB_WORKSPACE}/R68S/interface/balance_irq" package/base-files/files/etc/balance_irq
+else
+    rm -rf ${sysctl_dir}/0-base.conf
+    wget -P ${sysctl_dir} https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-base.conf
+    rm -rf ${sysctl_dir}/0-v4.conf
+    wget -P ${sysctl_dir} https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-v4.conf
+    rm -rf ${sysctl_dir}/0-v6.conf
+    wget -P ${sysctl_dir} https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/0-v6.conf
+    rm -rf ${sysctl_dir}/1-netfilter.conf
+    wget -P ${sysctl_dir} https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/config/1-netfilter.conf
+    rm -rf package/base-files/files/etc/balance_irq
+    wget -P package/base-files/files/etc  https://raw.githubusercontent.com/happyplum/action-openwrt/refs/heads/main/R68S/interface/balance_irq
+fi
 rm -rf package/base-files/files/usr/sbin/balethirq.pl
 wget -P package/base-files/files/usr/sbin https://raw.githubusercontent.com/unifreq/openwrt_packit/master/files/balethirq.pl
 rm -rf package/base-files/files/usr/sbin/fixcpufreq.pl

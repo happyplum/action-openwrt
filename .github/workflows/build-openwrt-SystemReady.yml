@@ -34,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Initialization environment
         id: init
@@ -141,7 +141,6 @@ jobs:
           [[ -d "output" ]] || mkdir output
           cp -f bin/targets/*/*/*rootfs.tar.gz output/
           (cd output && shopt -s nullglob && for f in *; do mv "$f" "$(date +"%Y%m%d")-$f"; done)
-          ls -A | grep -vE '^(output|\.ccache)$' | xargs rm -rf || true
           echo "FIRMWARE=${PWD}/output" >> ${{ github.env }}
 
           # Set output information

@@ -49,7 +49,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Initialization environment
         id: init
