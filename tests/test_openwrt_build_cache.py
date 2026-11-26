@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import unittest
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github/workflows"
@@ -17,10 +19,18 @@ class BuildCacheTests(unittest.TestCase):
                 "r68s": "firmware-sysupgrade.img.gz",
                 "SystemReady": "firmware-rootfs.tar.gz"}
 
+    def cache_steps(self):
+        steps = yaml.safe_load(ACTION.read_text())["runs"]["steps"]
+        return {step["name"]: step for step in steps if str(step.get("uses", "")).startswith("actions/cache")}
+
     def test_cleanup_keeps_post_job_cache_contents(self):
-        cache_paths = re.findall(r"^        path: /builder/openwrt/(.+)$",
-                                 ACTION.read_text(), re.MULTILINE)
-        self.assertCountEqual(cache_paths, [".ccache", "dl"])
+        caches = self.cache_steps()
+        self.assertCountEqual([c["with"]["path"].splitlines()[0] for c in caches.values()],
+                              ["/builder/openwrt/.ccache", "/builder/openwrt/dl"])
+        # Go's module cache is the transitive closure of go.mod files and goes stale
+        # whenever a feed bumps a dependency; a stale seed breaks the build.
+        self.assertIn("!/builder/openwrt/dl/go-mod-cache", caches["Restore source downloads"]["with"]["path"].splitlines())
+        cache_paths = [".ccache", "dl"]
         for board, firmware in self.FIRMWARE.items():
             workflow = (WORKFLOWS / f"build-openwrt-{board}.yml").read_text(encoding="utf-8")
             self.assertNotRegex(workflow, r"ln -s[^\n]*\.ccache")

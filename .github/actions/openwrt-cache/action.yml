@@ -64,9 +64,16 @@ runs:
 
     # A single seed per month avoids uploading a multi-GB archive for each feed update.
     # make download still runs on every build to fetch new or changed sources.
+    # Go's module cache (dl/go-mod-cache) is excluded: it is the transitive closure of
+    # every package's go.mod, so a stale seed makes Go report missing packages once a
+    # feed bumps a dependency instead of re-downloading it.
     - name: Restore source downloads
       if: inputs.cache-downloads == 'true'
       uses: actions/cache@v6.1.0
       with:
-        path: /builder/openwrt/dl
-        key: dl-v1-${{ steps.build.outputs.scope }}-${{ steps.build.outputs.month }}
+        path: |
+          /builder/openwrt/dl
+          !/builder/openwrt/dl/go-mod-cache
+        key: dl-v2-${{ steps.build.outputs.scope }}-${{ steps.build.outputs.month }}
+        restore-keys: |
+          dl-v2-${{ steps.build.outputs.scope }}-
