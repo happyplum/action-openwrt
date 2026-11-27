@@ -126,9 +126,7 @@ jobs:
 
       - name: Download package
         working-directory: /builder/openwrt
-        run: |
-          make download -j8
-          find dl -type f -size -1024c -print -delete
+        run: make download -j8
 
       - name: Compile the OpenWrt
         id: compile

@@ -23,13 +23,33 @@ class BuildCacheTests(unittest.TestCase):
         steps = yaml.safe_load(ACTION.read_text())["runs"]["steps"]
         return {step["name"]: step for step in steps if str(step.get("uses", "")).startswith("actions/cache")}
 
+    def test_download_cache_archives_children_and_skips_old_seeds(self):
+        options = self.cache_steps()["Restore source downloads"]["with"]
+        self.assertEqual(options["path"].splitlines(), [
+            "/builder/openwrt/dl/*", "!/builder/openwrt/dl/go-mod-cache",
+        ])
+        for key in [options["key"], *options["restore-keys"].splitlines()]:
+            self.assertTrue(key.startswith("dl-v3-"), key)
+
+    def test_download_preserves_small_module_sources_and_archives(self):
+        for board in (*self.FIRMWARE, "NSY-G68-PLUS"):
+            workflow = WORKFLOWS / f"build-openwrt-{board}.yml"
+            steps = yaml.safe_load(workflow.read_text(encoding="utf-8"))["jobs"]["build"]["steps"]
+            download = next(step["run"] for step in steps if step.get("name") == "Download package")
+            with self.subTest(board=board), tempfile.TemporaryDirectory() as temp:
+                build = Path(temp)
+                source = build / "dl/go-mod-cache/example.org/lib@v1.0.0/common/debug/debug.go"
+                source.parent.mkdir(parents=True)
+                source.write_text("package debug\n")
+                archive = build / "dl/small.tar.gz"
+                (build / "Makefile").write_text("download:\n\ttar -czf dl/small.tar.gz Makefile\n")
+                subprocess.run(["bash", "-ec", download], cwd=build, check=True)
+                self.assertTrue(source.is_file())
+                self.assertTrue(archive.is_file())
+
     def test_cleanup_keeps_post_job_cache_contents(self):
-        caches = self.cache_steps()
-        self.assertCountEqual([c["with"]["path"].splitlines()[0] for c in caches.values()],
-                              ["/builder/openwrt/.ccache", "/builder/openwrt/dl"])
-        # Go's module cache is the transitive closure of go.mod files and goes stale
-        # whenever a feed bumps a dependency; a stale seed breaks the build.
-        self.assertIn("!/builder/openwrt/dl/go-mod-cache", caches["Restore source downloads"]["with"]["path"].splitlines())
+        self.assertEqual(self.cache_steps()["Restore compiler results"]["with"]["path"],
+                         "/builder/openwrt/.ccache")
         cache_paths = [".ccache", "dl"]
         for board, firmware in self.FIRMWARE.items():
             workflow = (WORKFLOWS / f"build-openwrt-{board}.yml").read_text(encoding="utf-8")
